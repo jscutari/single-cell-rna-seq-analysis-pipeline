@@ -1,7 +1,8 @@
 // The only place the UI talks to the backend. Components call these functions,
 // never fetch() directly. Flip USE_MOCK off once FastAPI (proxied at /api) is up.
 import { mockProjects } from "../data/mockProjects";
-import type { ChatMessage, ProjectSummary } from "../types/schemas";
+import type { ProjectSummary } from "../types/schemas";
+import { publishMockEvent } from "./mockEvents";
 
 export const USE_MOCK = true;
 
@@ -23,7 +24,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
 
 export async function createProject(name: string): Promise<ProjectSummary> {
   if (USE_MOCK) {
-    const project = { id: crypto.randomUUID(), name, created_at: new Date().toISOString() };
+    const project = { id: newId(), name, created_at: new Date().toISOString() };
     mockStore = [project, ...mockStore];
     return project;
   }
@@ -33,20 +34,36 @@ export async function createProject(name: string): Promise<ProjectSummary> {
 const MOCK_REPLY = "Trademarked 2026  Jiggle by Kerry";
 const MOCK_REPLY_DELAY_MS = 600;
 
-/** Sends a user message and resolves with the assistant's reply. */
-export async function sendMessage(projectId: string, text: string): Promise<ChatMessage> {
+/**
+ * Sends a user message. The backend saves it and hands it to the orchestrator
+ * (handle_user_message); the assistant's answer arrives later as a chat_reply event.
+ */
+export async function sendMessage(projectId: string, text: string): Promise<void> {
   if (USE_MOCK) {
-    await new Promise((resolve) => setTimeout(resolve, MOCK_REPLY_DELAY_MS));
-    return {
-      id: crypto.randomUUID(),
-      project_id: projectId,
-      role: "assistant",
-      content: MOCK_REPLY,
-      created_at: new Date().toISOString(),
-    };
+    setTimeout(() => {
+      publishMockEvent({
+        id: newId(),
+        type: "chat_reply",
+        project_id: projectId,
+        created_at: new Date().toISOString(),
+        payload: {
+          id: newId(),
+          project_id: projectId,
+          role: "assistant",
+          content: MOCK_REPLY,
+          created_at: new Date().toISOString(),
+        },
+      });
+    }, MOCK_REPLY_DELAY_MS);
+    return;
   }
-  return request(`/projects/${projectId}/messages`, {
+  await request(`/projects/${projectId}/messages`, {
     method: "POST",
     body: JSON.stringify({ content: text }),
   });
+}
+
+/** Hex id in the same format as shared.schemas.new_id(). */
+function newId(): string {
+  return crypto.randomUUID().replaceAll("-", "");
 }

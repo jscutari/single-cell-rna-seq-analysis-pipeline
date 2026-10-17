@@ -16,9 +16,9 @@ export function useProjectStream(projectId: string | null, onEvent: (event: Scra
     if (!projectId) return;
 
     if (USE_MOCK) {
-      return subscribeMockEvents((event) => {
-        if (event.project_id === projectId) handlerRef.current(event);
-      });
+      // The mock bus delivers every project's events; handlers route by event.project_id,
+      // so a reply still lands if the user switched projects while waiting.
+      return subscribeMockEvents((event) => handlerRef.current(event));
     }
 
     const source = new EventSource(`/api/projects/${projectId}/events`);

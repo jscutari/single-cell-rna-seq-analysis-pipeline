@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createProject, listProjects, sendMessage } from "./api/client";
+import { useProjectStream } from "./api/useProjectStream";
 import { ChatView } from "./components/ChatView/ChatView";
 import { Composer } from "./components/Composer/Composer";
 import { Page } from "./components/Page/Page";
@@ -7,6 +8,7 @@ import { Sidebar } from "./components/Sidebar/Sidebar";
 import { SpiralBinding } from "./components/SpiralBinding";
 import { WelcomeView } from "./components/WelcomeCard/WelcomeView";
 import { Workbook } from "./components/Workbook";
+import type { ScrapEvent } from "./types/events";
 import type { ChatMessage, ProjectSummary } from "./types/schemas";
 
 export default function App() {
@@ -47,7 +49,7 @@ export default function App() {
     if (!selectedId || !text) return;
     const projectId = selectedId;
     appendMessage({
-      id: crypto.randomUUID(),
+      id: crypto.randomUUID().replaceAll("-", ""),
       project_id: projectId,
       role: "user",
       content: text,
@@ -55,11 +57,19 @@ export default function App() {
     });
     setPending(projectId, true);
     try {
-      appendMessage(await sendMessage(projectId, text));
-    } finally {
+      await sendMessage(projectId, text);
+    } catch (error) {
+      console.error(error);
       setPending(projectId, false);
     }
   };
+
+  useProjectStream(selectedId, (event: ScrapEvent) => {
+    if (event.type === "chat_reply") {
+      appendMessage(event.payload);
+      setPending(event.project_id, false);
+    }
+  });
 
   const messages = selectedId ? (messagesByProject[selectedId] ?? []) : [];
   const awaitingReply = selectedId !== null && pendingReply.has(selectedId);
