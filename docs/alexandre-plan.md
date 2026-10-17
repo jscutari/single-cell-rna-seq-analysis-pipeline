@@ -8,10 +8,10 @@
 - [x] 4. Sandbox Dockerfile
 - [x] 5. `preprocess.py` (44,649 cells → `~/workspace/data/covid_pbmc/`)
 - [x] 6. `kernel_manager.py` + `scrap_tools.py` helpers (reproduce ISG up / HLA-II down)
-- [ ] 7. Prompts + `checks.py` *(checks.py done; prompts next)*
-- [ ] 8. Single-hypothesis loop (first finding)
-- [ ] 9. Full orchestrator
-- [ ] 10. Intake agent
+- [x] 7. Prompts + `checks.py`
+- [x] 8. Single-hypothesis loop: first critic-approved finding (IFN-α in CD14 monocytes, d = 1.72, p = 0.014, 90 s)
+- [x] 9. Full orchestrator (3 hypotheses in parallel, 127 s end to end)
+- [x] 10. Intake agent
 - [ ] 11. Literature (11a index · 11b background · 11c novelty · 11d Europe PMC)
 - [ ] 12. Reporter
 - [ ] 13. Benchmarks

@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 
 from shared.events import Event, EventType, emit
 from shared.schemas import LLMCall
@@ -32,17 +33,27 @@ async def chat(
     reasoning: bool = True,
     tools: list[dict[str, Any]] | None = None,
     parent_call_id: str | None = None,
+    schema: type[BaseModel] | None = None,
     max_tokens: int = 16000,
     temperature: float = 1.0,
     top_p: float = 0.95,
 ) -> LLMCall:
-    """One model call. Returns the LLMCall (answer in .output) and emits it as an event."""
+    """One model call. Returns the LLMCall (answer in .output) and emits it as an event.
+
+    With `schema`, vLLM constrains the answer (after any reasoning) to JSON matching
+    that Pydantic model; parse it with schema.model_validate_json(call.output).
+    """
     # Per the model card: reasoning is switched per request through the chat template.
     template_kwargs: dict[str, Any] = {"enable_thinking": reasoning}
     extra: dict[str, Any] = {}
     if tools:
         template_kwargs["force_nonempty_content"] = True
         extra["tools"] = tools
+    if schema:
+        extra["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {"name": schema.__name__, "schema": schema.model_json_schema()},
+        }
 
     start = time.perf_counter()
     resp = await _client.chat.completions.create(

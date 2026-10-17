@@ -14,6 +14,9 @@ from shared.schemas import Brief, CodeCell, Finding
 
 Status = Literal["pass", "warn", "fail"]
 MIN_DONORS_PER_GROUP = 3
+ALPHA = 0.05
+# Checks the critic cannot override: a FAIL here means the finding is rejected.
+BLOCKING = {"significance", "replicates"}
 _MARK = "__SCRAP_DESIGN__"
 
 
@@ -30,15 +33,16 @@ def design_check_code(brief: Brief) -> str:
 import json as _json
 _cond, _donor = {brief.condition_column!r}, {brief.donor_column!r}
 _skip = {{_cond, _donor, {brief.celltype_column!r}}}
-_donors = adata.obs.groupby(_donor, observed=True)[_cond].first().astype(str)
+_obs = _ADATA.obs  # full dataset, even if a cell reassigned `adata`
+_donors = _obs.groupby(_donor, observed=True)[_cond].first().astype(str)
 _confounded = []
-for _c in adata.obs.columns:
-    if _c in _skip or _c.endswith("_ontology_term_id") or not 2 <= adata.obs[_c].nunique() <= 10:
+for _c in _obs.columns:
+    if _c in _skip or _c.endswith("_ontology_term_id") or not 2 <= _obs[_c].nunique() <= 10:
         continue
-    _per_donor = adata.obs.groupby(_donor, observed=True)[_c].agg(lambda s: s.astype(str).mode().iat[0])
-    _tab = _per_donor.groupby(_donors).agg(lambda s: set(s))
+    _per_donor = _obs.groupby(_donor, observed=True)[_c].agg(lambda s: s.astype(str).mode().iat[0])
+    _tab = {{k: set(v) for k, v in _per_donor.groupby(_donors)}}
     # Confounded: each condition has one value of this column and the values differ.
-    if all(len(v) == 1 for v in _tab) and len(set().union(*_tab)) == len(_tab):
+    if all(len(v) == 1 for v in _tab.values()) and len(set().union(*_tab.values())) == len(_tab):
         _confounded.append(f"{{_c}}: " + ", ".join(f"{{k}}={{next(iter(v))}}" for k, v in _tab.items()))
 print({_MARK!r} + _json.dumps({{"donors_per_condition": _donors.value_counts().to_dict(), "confounded": _confounded}}))
 """
@@ -73,6 +77,13 @@ def run_checks(cells: list[CodeCell], finding: Finding, design: dict) -> list[Ch
                          "A p_adj is claimed but no correction (padj / multipletests) appears in the code."))
     else:
         out.append(Check("multiple_testing", "fail", "No adjusted p-value reported."))
+
+    # 2b. Significance. A correctly reported null result is still not a finding.
+    if finding.p_adj is None or finding.p_adj >= ALPHA:
+        out.append(Check("significance", "fail",
+                         f"Adjusted p = {finding.p_adj} is not below {ALPHA}; this cannot be approved as a finding."))
+    else:
+        out.append(Check("significance", "pass", f"Adjusted p = {finding.p_adj:.3g} < {ALPHA}."))
 
     # 3. Effect size.
     if finding.effect_size is None:
