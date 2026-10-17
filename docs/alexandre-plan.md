@@ -3,7 +3,7 @@
 ## Progress
 - [x] 0. Shared schemas + events
 - [ ] 1. Brev box + `setup_brev.sh` *(script written; run it on the box)*
-- [ ] 2. `serve_vllm.sh`
+- [ ] 2. `serve_vllm.sh` *(script written; run it once weights finish downloading)*
 - [ ] 3. `agents/llm.py`
 - [ ] 4. Sandbox Dockerfile
 - [ ] 5. `preprocess.py`
