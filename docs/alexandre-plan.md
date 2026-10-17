@@ -12,8 +12,8 @@
 - [x] 8. Single-hypothesis loop: first critic-approved finding (IFN-α in CD14 monocytes, d = 1.72, p = 0.014, 90 s)
 - [x] 9. Full orchestrator (3 hypotheses in parallel, 127 s end to end)
 - [x] 10. Intake agent
-- [ ] 11. Literature (11a index · 11b background · 11c novelty · 11d Europe PMC)
-- [ ] 12. Reporter
+- [ ] 11. Literature (11a–d written and wired in; needs the Wilk PDF to test)
+- [ ] 12. Reporter *(written; testing)*
 - [ ] 13. Benchmarks
 
 ## Context

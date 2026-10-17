@@ -4,6 +4,7 @@ Test on the COVID dataset (vLLM running):  uv run python -m agents.hypothesis
 """
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from agents import checks, prompting
+from agents import checks, literature, prompting
 from agents.llm import chat
 from sandbox import kernel_manager as km
 from shared.events import Event, EventType, emit
@@ -20,6 +21,7 @@ from shared.schemas import Brief, CellStatus, CodeCell, CriticVerdict, Finding, 
 MAX_FIX_ATTEMPTS = 3  # coder retries per step after an error
 MAX_REVISIONS = 1  # extra cells the critic may request
 CONTEXT_CHARS = 2500  # output per cell shown to other agents
+log = logging.getLogger("scrap.hypothesis")
 
 
 @dataclass
@@ -192,6 +194,12 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis) -> Finding | None:
         pick = figs.get(draft.figure_cell) or (list(figs.values())[-1] if figs else [])
         finding.figure_path = pick[0] if pick else None
         finding.notebook_path = str(ctx.project_dir / "hypotheses" / h.id / f"{h.id}.ipynb")
+        if finding.critic_verdict == CriticVerdict.approve:
+            try:  # novelty is a bonus; never lose a finding over it
+                await literature.novelty(ctx.project_id, ctx.project_dir, ctx.prefix, finding,
+                                         online=ctx.brief.online_search)
+            except Exception:
+                log.exception("Novelty check failed for %s", h.id)
         emit(Event(type=EventType.finding, project_id=ctx.project_id, payload=finding))
         _set_status(ctx, h, HypothesisStatus.approved if finding.critic_verdict == CriticVerdict.approve
                     else HypothesisStatus.rejected)

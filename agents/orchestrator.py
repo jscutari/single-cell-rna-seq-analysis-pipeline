@@ -25,7 +25,7 @@ import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from agents import intake, prompting
+from agents import intake, literature, prompting, reporter
 from agents.hypothesis import RunContext, plan_hypotheses, run_hypothesis
 from sandbox import kernel_manager as km
 from shared.events import Event, EventType, emit
@@ -47,6 +47,8 @@ class _Run:
     chat: list[ChatMessage] = field(default_factory=list)
     hypotheses: list[Hypothesis] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
+    background: str = ""
+    prefix: str = ""  # shared prompt prefix, set once the brief is final
     tasks: set[asyncio.Task] = field(default_factory=set)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -119,9 +121,17 @@ async def _intake_turn(run: _Run) -> None:
 
 
 async def _analyze(run: _Run) -> None:
-    ctx = RunContext(run.project_id, run.project_dir, run.brief, run.summary,
-                     prompting.shared_prefix(run.summary, run.brief))
-    background = ""  # literature agent (step 11) fills this in
+    run.prefix = prompting.shared_prefix(run.summary, run.brief)
+    ctx = RunContext(run.project_id, run.project_dir, run.brief, run.summary, run.prefix)
+    try:
+        background, searched = await literature.background(
+            run.project_id, run.project_dir, ctx.prefix, run.brief.goals, online=run.brief.online_search)
+    except Exception:
+        log.exception("Literature background failed; planning without it")
+        background, searched = "", []
+    run.background = background
+    if background:
+        _stage_done(run, "literature", f"Background from {len(searched)} sources:\n{background}")
     hypotheses = await plan_hypotheses(ctx, N_HYPOTHESES, background, past=run.hypotheses)
     run.hypotheses += hypotheses
     _stage_done(run, "planning", "Testing: " + "; ".join(h.title for h in hypotheses))
@@ -133,16 +143,23 @@ async def _analyze(run: _Run) -> None:
         elif isinstance(r, BaseException):
             log.error("Hypothesis %s failed: %s", h.id, "".join(traceback.format_exception(r)))
     approved = [f for f in run.findings if f.critic_verdict == "approve"]
-    run.stage = "done"
     _stage_done(run, "analysis", f"{len(hypotheses)} hypotheses tested, {len(approved)} findings approved.")
+
+    text = await reporter.report(run.project_id, run.prefix, run.background, run.hypotheses, run.findings)
+    (run.project_dir / "report.md").write_text(text)
+    run.stage = "done"
+    _say(run, text)
+    _stage_done(run, "report", text)
 
 
 async def _answer(run: _Run, text: str) -> None:
-    # Q&A over results is the reporter agent (step 12); until then, report status.
-    approved = [f for f in run.findings if f.critic_verdict == "approve"]
-    lines = [f"Stage: {run.stage}. {len(run.hypotheses)} hypotheses, {len(approved)} approved findings."]
-    lines += [f"- {f.claim}" for f in approved]
-    _say(run, "\n".join(lines))
+    """Q&A over results. Works mid-run too: it answers from whatever has finished so far."""
+    if not run.prefix:
+        _say(run, f"The analysis hasn't started yet (stage: {run.stage}).")
+        return
+    history = [(m.role.value, m.content) for m in run.chat[:-1]]
+    _say(run, await reporter.answer(run.project_id, run.prefix, run.background,
+                                    run.hypotheses, run.findings, history, text))
 
 
 # --- helpers ---
@@ -226,7 +243,7 @@ async def _demo() -> None:
             print("  brief:", {k: v for k, v in p.items() if v and k != "project_id"})
         elif e.type == EventType.stage_done:
             print(f"== stage_done {p['stage']}: {p['summary']}")
-            if p["stage"] in ("analysis", "failed", "stopped"):
+            if p["stage"] in ("report", "failed", "stopped"):
                 done.set()
         elif e.type == EventType.finding:
             print(f"  FINDING [{p['critic_verdict']}] {p['claim']}  (p_adj={p['p_adj']}, effect={p['effect_size']})")
@@ -270,6 +287,12 @@ async def _demo() -> None:
         await handle_user_message(pid, "Looks good, please start the analysis.")
     await done.wait()
     watcher.cancel()
+    while not replies.empty():  # drop earlier replies (intake, report)
+        replies.get_nowait()
+    question = "Which result is strongest, and is it already known from the literature?"
+    print(f"USER: {question}")
+    await handle_user_message(pid, question)
+    await replies.get()
 
     cached = metric("vllm:prompt_tokens_cached_total") - cached0
     prompt = metric("vllm:prompt_tokens_total") - queried0
