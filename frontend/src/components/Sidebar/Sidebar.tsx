@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import logo from "../../assets/scrap-logo.png";
+import logo from "../../assets/scrap-logo.svg";
 import { relativeTime } from "../../lib/relativeTime";
 import type { ProjectSummary } from "../../types/schemas";
 import type { Chat, View } from "../../types/ui";
@@ -18,6 +18,8 @@ interface SidebarProps {
   onNewChat: (projectId: string) => void;
   onRenameChat?: (projectId: string, chatId: string, title: string) => void;
   onNewProject: () => void;
+  /** Logo click: back to the start screen, as when the app opens. */
+  onHome?: () => void;
 }
 
 export function Sidebar({
@@ -32,14 +34,17 @@ export function Sidebar({
   onNewChat,
   onRenameChat,
   onNewProject,
+  onHome,
 }: SidebarProps) {
   return (
     <aside className={collapsed ? "sidebar sidebar--collapsed" : "sidebar"} aria-label="Projects navigation">
       <header className="brand">
-        <img className="brand-logo" src={logo} alt="SCRAP DNA wastebasket logo" />
-        <div className="brand-copy">
-          <strong className="brand-name">SCRAP</strong>
-        </div>
+        <button className="brand-home" type="button" aria-label="SCRAP home" title="Start screen" onClick={onHome}>
+          <img className="brand-logo" src={logo} alt="" />
+          <span className="brand-copy">
+            <strong className="brand-name">SCRAP</strong>
+          </span>
+        </button>
         {onToggleCollapsed && (
           <button
             className="sidebar-toggle"

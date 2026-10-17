@@ -6,6 +6,7 @@ import { fileKind } from "./lib/files";
 import { newId } from "./lib/ids";
 import { ChatView } from "./components/ChatView/ChatView";
 import { Composer, type Attachment } from "./components/Composer/Composer";
+import { ProjectChip } from "./components/Composer/ProjectChip";
 import { FilePreview } from "./components/FilePreview/FilePreview";
 import { FilesPanel, type PanelItem } from "./components/FilesPanel/FilesPanel";
 import { Page } from "./components/Page/Page";
@@ -24,6 +25,22 @@ const REPLY_TIMEOUT_MS = 60_000;
 type Timer = ReturnType<typeof setTimeout>;
 
 const SIDEBAR_KEY = "scrap.sidebarCollapsed";
+const LAST_PROJECT_KEY = "scrap.lastProjectId";
+
+function readStored(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function store(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable: fine for this session */
+  }
+}
 function readSidebarCollapsed(): boolean {
   try {
     return localStorage.getItem(SIDEBAR_KEY) === "1";
@@ -49,6 +66,12 @@ export default function App() {
   const [panelItem, setPanelItem] = useState<PanelItem>(null);
   /** Files attached in a chat, waiting to go out with the next message. */
   const [attachmentsByChat, setAttachmentsByChat] = useState<Record<string, Attachment[]>>({});
+  /** The project you last worked in (remembered across visits); the start screen's default target. */
+  const [lastProjectId, setLastProjectId] = useState<string | null>(() => readStored(LAST_PROJECT_KEY));
+  /** Project picked in the start screen's chip; null means "use the default". */
+  const [homeProjectId, setHomeProjectId] = useState<string | null>(null);
+  /** Bumped by the logo to give the start screen a fresh composer. */
+  const [homeResets, setHomeResets] = useState(0);
 
   // Synchronous bookkeeping that must not wait for a re-render.
   const seenMessageIds = useRef(new Set<string>()); // drops SSE replays / history overlap
@@ -81,6 +104,26 @@ export default function App() {
   useEffect(() => {
     if (view.kind !== "chat") setFilesPanelOpen(false);
   }, [view.kind]);
+
+  const markUsed = (projectId: string) => {
+    setLastProjectId(projectId);
+    store(LAST_PROJECT_KEY, projectId);
+  };
+
+  /** Where a chat started from the start screen goes: the chip's pick, else the last-used project, else the newest. */
+  const homeTargetId =
+    [homeProjectId, lastProjectId].find((id) => id && projects.some((p) => p.id === id)) ?? projects[0]?.id ?? null;
+
+  /** Logo: back to the start screen, as when the app opens. Projects and chats are kept. */
+  const goHome = () => {
+    setView({ kind: "home" });
+    setExpandedProjectId(null);
+    setFilesPanelOpen(false);
+    setPanelItem(null);
+    setPreviewFileId(null);
+    setHomeProjectId(null);
+    setHomeResets((n) => n + 1);
+  };
 
   const toggleSidebar = () =>
     setSidebarCollapsed((collapsed) => {
@@ -219,6 +262,7 @@ export default function App() {
   };
 
   const openProject = (projectId: string) => {
+    markUsed(projectId);
     ensureChats(projectId);
     ensureProjectData(projectId);
     if (view.kind === "project" && view.projectId === projectId) {
@@ -230,6 +274,7 @@ export default function App() {
   };
 
   const openChat = (projectId: string, chatId: string) => {
+    markUsed(projectId);
     setView({ kind: "chat", projectId, chatId });
     setExpandedProjectId(projectId);
   };
@@ -249,7 +294,8 @@ export default function App() {
     return chat.id;
   };
 
-  const handleNewProject = async () => {
+  /** Creates "Project N"; returns it, or undefined if the backend refused. */
+  const addProject = async (): Promise<ProjectSummary | undefined> => {
     const name = nextProjectName(takenNames.current);
     takenNames.current.add(name); // reserve now so a quick second click gets the next number
     try {
@@ -258,12 +304,26 @@ export default function App() {
       projectDataRequested.current.add(project.id);
       setChats(project.id, () => []);
       setProjects((list) => [project, ...list]);
-      setView({ kind: "project", projectId: project.id });
-      setExpandedProjectId(project.id);
+      return project;
     } catch (error) {
       takenNames.current.delete(name);
       console.error("Could not create project", error);
+      return undefined;
     }
+  };
+
+  const handleNewProject = async () => {
+    const project = await addProject();
+    if (!project) return;
+    markUsed(project.id);
+    setView({ kind: "project", projectId: project.id });
+    setExpandedProjectId(project.id);
+  };
+
+  /** "New project" from the start-screen chip: create it and aim the chip at it, staying on the start screen. */
+  const newProjectFromChip = async () => {
+    const project = await addProject();
+    if (project) setHomeProjectId(project.id);
   };
 
   const handleSend = (text: string) => {
@@ -272,10 +332,10 @@ export default function App() {
     if (view.kind === "chat") {
       ({ projectId, chatId } = view);
     } else {
-      // From the start screen: start a new chat in the most recent project.
-      if (!projects.length) return false; // projects not loaded yet: keep the text in the box
+      // From the start screen: start a new chat in the project shown in the chip.
+      if (!homeTargetId) return false; // projects not loaded yet: keep the text in the box
       if (!text) return;
-      projectId = projects[0].id;
+      projectId = homeTargetId;
       chatId = newChat(projectId);
     }
     // Attached files go out as a line the agents can read; the files are already in the project.
@@ -325,7 +385,18 @@ export default function App() {
   const chatView = view.kind === "chat" ? view : undefined;
   const composer = (
     <Composer
+      key={view.kind === "home" ? `home-${homeResets}` : "chat"}
       onSend={handleSend}
+      context={
+        view.kind === "home" && projects.length > 0 ? (
+          <ProjectChip
+            projects={projects}
+            selectedId={homeTargetId}
+            onSelect={setHomeProjectId}
+            onNewProject={newProjectFromChip}
+          />
+        ) : undefined
+      }
       onAttach={() => console.info("[mock] attach dataset")}
       onAttachFiles={chatView && ((picked) => attachFiles(chatView.projectId, chatView.chatId, picked))}
       attachments={chatView ? attachmentsByChat[chatView.chatId] : undefined}
@@ -386,6 +457,7 @@ export default function App() {
         onNewChat={newChat}
         onRenameChat={renameChat}
         onNewProject={handleNewProject}
+        onHome={goHome}
       />
       <SpiralBinding />
       <Page

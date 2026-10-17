@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ProjectSummary } from "./types/schemas";
 import type { Chat } from "./types/ui";
 
@@ -87,6 +87,7 @@ async function renderApp() {
 }
 
 beforeEach(() => {
+  localStorage.clear(); // remembered choices (last project, sidebar, panel width) must not leak between tests
   Element.prototype.scrollIntoView = vi.fn();
   api.listProjects.mockResolvedValue(PROJECTS);
   api.createProject.mockImplementation(async (name: string) => ({ id: `new-${name}`, name, created_at: NOW }));
@@ -511,5 +512,147 @@ describe("files in a chat", () => {
     await click(projectButton("Project 1"));
     expect(screen.queryByRole("complementary", { name: "Project files" })).toBeNull();
     expect(screen.queryByRole("button", { name: /project files/ })).toBeNull();
+  });
+});
+
+describe("logo", () => {
+  it("returns to a fresh start screen: no project open, panels closed, empty composer", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    await click(screen.getByRole("button", { name: "Show project files" }));
+    fireEvent.change(input()!, { target: { value: "half-typed question" } });
+    await click(screen.getByRole("button", { name: "SCRAP home" }));
+    expect(screen.getByText(/Welcome to/)).toBeTruthy();
+    expect(chatList("Project 1")).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Project files" })).toBeNull();
+    expect(input()!.value).toBe("");
+    expect(screen.getByRole("button", { name: /^New chat goes in Project 1/ })).toBeTruthy();
+  });
+});
+
+describe("start screen project chip", () => {
+  const chip = () => screen.getByRole("button", { name: /^New chat goes in/ });
+
+  it("shows where a new chat goes and lets you pick another project", async () => {
+    await renderApp();
+    expect(chip().textContent).toContain("Project 1");
+    await click(chip());
+    const menu = screen.getByRole("menu", { name: "Choose a project" });
+    expect(within(menu).getByRole("menuitemradio", { name: "Project 1" }).getAttribute("aria-checked")).toBe("true");
+    await click(within(menu).getByRole("menuitemradio", { name: "Other" }));
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(chip().textContent).toContain("Other");
+    send("compare neutrophils");
+    await act(async () => {});
+    expect(api.sendMessage).toHaveBeenCalledWith("p2", "compare neutrophils");
+    expect(chatTitles("Other")).toContain("Compare neutrophils");
+  });
+
+  it("defaults to the project you last worked in, even after a reload", async () => {
+    await renderApp();
+    await click(projectButton("Other"));
+    await click(screen.getByRole("button", { name: "SCRAP home" }));
+    expect(chip().textContent).toContain("Other");
+    cleanup(); // a new visit: the remembered project is still the default
+    await renderApp();
+    expect(chip().textContent).toContain("Other");
+  });
+
+  it("New project from the chip creates it and stays on the start screen", async () => {
+    await renderApp();
+    await click(chip());
+    await click(screen.getByRole("menuitem", { name: "New project" }));
+    expect(chip().textContent).toContain("Project 2");
+    expect(screen.getByText(/Welcome to/)).toBeTruthy();
+    send("first question");
+    await act(async () => {});
+    expect(api.sendMessage).toHaveBeenCalledWith("new-Project 2", "first question");
+  });
+
+  it("closes the menu with Escape or a click outside", async () => {
+    await renderApp();
+    await click(chip());
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    expect(screen.queryByRole("menu")).toBeNull();
+    await click(chip());
+    await act(async () => {
+      fireEvent.mouseDown(document.body);
+    });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("is only on the start screen", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    expect(screen.queryByRole("button", { name: /^New chat goes in/ })).toBeNull();
+  });
+});
+
+describe("resizable side panel", () => {
+  const page = () => document.querySelector("main.page") as HTMLElement;
+
+  // jsdom has no PointerEvent; without one, simulated pointer events carry no clientX.
+  beforeAll(() => {
+    if (!("PointerEvent" in window)) {
+      class PointerEventStub extends MouseEvent {
+        pointerId: number;
+        constructor(type: string, init: PointerEventInit = {}) {
+          super(type, init);
+          this.pointerId = init.pointerId ?? 0;
+        }
+      }
+      Object.defineProperty(window, "PointerEvent", { value: PointerEventStub, configurable: true });
+    }
+  });
+
+  it("resizes with the keyboard, remembers the width, and double-click resets it", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    await click(screen.getByRole("button", { name: "Show project files" }));
+    const handle = screen.getByRole("separator", { name: "Resize panel" });
+    await act(async () => {
+      fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    });
+    const wider = page().style.getPropertyValue("--preview-width");
+    expect(wider).toMatch(/^\d+px$/);
+    expect(localStorage.getItem("scrap.panelWidth")).toBe(wider.replace("px", ""));
+    await act(async () => {
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+    });
+    expect(parseInt(page().style.getPropertyValue("--preview-width"))).toBe(parseInt(wider) - 24);
+    await act(async () => {
+      fireEvent.doubleClick(handle);
+    });
+    expect(page().style.getPropertyValue("--preview-width")).toBe("");
+    expect(localStorage.getItem("scrap.panelWidth")).toBeNull();
+  });
+
+  it("drags to resize", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    await click(screen.getByRole("button", { name: "Show project files" }));
+    vi.spyOn(page(), "getBoundingClientRect").mockReturnValue({ left: 0, right: 1200, width: 1200 } as DOMRect);
+    const handle = screen.getByRole("separator", { name: "Resize panel" });
+    handle.setPointerCapture = vi.fn();
+    handle.releasePointerCapture = vi.fn();
+    await act(async () => {
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 760 });
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 600 });
+      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 600 });
+    });
+    expect(page().style.getPropertyValue("--preview-width")).toBe("582px"); // 1200 - 18 - 600
+    await act(async () => {
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 600 });
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 100 });
+    });
+    expect(page().style.getPropertyValue("--preview-width")).toBe("822px"); // capped: chat keeps 360px
+  });
+
+  it("has no handle without a panel", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    expect(screen.queryByRole("separator", { name: "Resize panel" })).toBeNull();
   });
 });

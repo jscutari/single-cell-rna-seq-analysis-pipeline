@@ -163,3 +163,13 @@ aside.sidebar--collapsed { flex-basis: 73px; width: 73px; padding: 16px 8px; tra
 .sidebar--collapsed .projects { align-items: center; margin: 0; }
 .sidebar--collapsed .project { width: 54px; height: 56px; min-height: 56px; justify-content: center; padding: 0; gap: 0; }
 .sidebar--collapsed .sidebar-foot { align-items: center; flex-direction: column; gap: 15px; }
+
+/* Logo + name: one button back to the start screen */
+.brand-home {
+  display: flex; align-items: center; gap: 12px; min-width: 0; padding: 2px 6px 2px 0;
+  border: 0; border-radius: 10px; background: transparent; color: inherit; text-align: left;
+}
+.brand-home:hover .brand-name { color: #3a68a8; }
+.brand-home:focus-visible { outline: 2px solid #85aee8; outline-offset: 2px; }
+.sidebar--collapsed .brand-home { padding: 0; }
+@media (max-width: 1050px) { .brand-home { gap: 7px; } }

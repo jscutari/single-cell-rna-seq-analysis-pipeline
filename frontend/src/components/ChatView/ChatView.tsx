@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import logo from "../../assets/scrap-logo.png";
+import logo from "../../assets/scrap-logo.svg";
 import type { ChatMessage } from "../../types/schemas";
 import "./ChatView.css";
 

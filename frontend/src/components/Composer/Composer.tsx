@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowUpIcon, CloseIcon, PaperclipIcon } from "../icons/Icons";
 import "./Composer.css";
 
@@ -16,9 +16,11 @@ interface ComposerProps {
   /** Files waiting to go out with the next message. */
   attachments?: Attachment[];
   onRemoveAttachment?: (id: string) => void;
+  /** Shown above the box on the left, e.g. which project a new chat goes in. */
+  context?: ReactNode;
 }
 
-export function Composer({ onSend, onAttachFiles, onAttach, attachments = [], onRemoveAttachment }: ComposerProps) {
+export function Composer({ onSend, onAttachFiles, onAttach, attachments = [], onRemoveAttachment, context }: ComposerProps) {
   const [text, setText] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -34,19 +36,24 @@ export function Composer({ onSend, onAttachFiles, onAttach, attachments = [], on
 
   return (
     <form className={attachments.length ? "composer composer--with-files" : "composer"} aria-label="Ask SCRAP" onSubmit={submit}>
-      {attachments.length > 0 && (
-        <ul className="composer-files" aria-label="Attached files">
-          {attachments.map((a) => (
-            <li key={a.id} className="composer-file">
-              <span className="composer-file-name">{a.name}</span>
-              {onRemoveAttachment && (
-                <button type="button" aria-label={`Remove ${a.name}`} onClick={() => onRemoveAttachment(a.id)}>
-                  <CloseIcon />
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+      {(context || attachments.length > 0) && (
+        <div className="composer-above">
+          {context}
+          {attachments.length > 0 && (
+            <ul className="composer-files" aria-label="Attached files">
+              {attachments.map((a) => (
+                <li key={a.id} className="composer-file">
+                  <span className="composer-file-name">{a.name}</span>
+                  {onRemoveAttachment && (
+                    <button type="button" aria-label={`Remove ${a.name}`} onClick={() => onRemoveAttachment(a.id)}>
+                      <CloseIcon />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       <button
         className="attach"

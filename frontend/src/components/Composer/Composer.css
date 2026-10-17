@@ -39,10 +39,11 @@
 }
 
 /* Attached-file chips sit just above the composer, like notes clipped to it */
-.composer-files {
-  position: absolute; left: 10px; right: 10px; bottom: calc(100% + 8px);
-  list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; z-index: 1;
+.composer-above {
+  position: absolute; left: 10px; right: 10px; bottom: calc(100% + 8px); z-index: 1;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
 }
+.composer-files { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .composer-file {
   display: flex; align-items: center; gap: 4px; max-width: 260px; padding: 3px 4px 3px 11px;
   background: #fbfaf6; border: 1px solid #b9cfee; border-radius: 999px; font-size: 13px; color: #2f5d9a;
@@ -60,3 +61,31 @@
 @media (max-width: 740px) {
   .page--with-panel .composer { right: 12px; }
 }
+
+/* "in Project 1 ▾" on the start screen */
+.project-chip-wrap { position: relative; }
+.project-chip {
+  display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 12px; max-width: 320px;
+  background: #fbfaf6; border: 1px solid #c9d6e8; border-radius: 999px; color: var(--ink); font-size: 14px;
+  box-shadow: 0 1px 2px rgba(83, 77, 67, .1);
+}
+.project-chip:hover, .project-chip[aria-expanded="true"] { border-color: #85aee8; background: var(--blue-pale); }
+.project-chip-label { color: var(--ink-soft); }
+.project-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-chip .icon { width: 16px; height: 16px; flex-shrink: 0; color: #3a68a8; }
+.project-menu {
+  position: absolute; left: 0; bottom: calc(100% + 6px); min-width: 230px; max-height: 300px; overflow: auto;
+  list-style: none; margin: 0; padding: 6px; z-index: 30;
+  background: #fbfaf6; border: 1px solid #e3dfd4; border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(83, 77, 67, .18), 0 1px 3px rgba(91, 85, 78, .1);
+}
+.project-menu-item {
+  width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 10px; text-align: left;
+  border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: 15px;
+}
+.project-menu-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-menu-item:hover { background: rgba(181, 211, 247, .25); }
+.project-menu-item--on { background: rgba(181, 211, 247, .4); }
+.project-menu-item .icon { width: 17px; height: 17px; flex-shrink: 0; color: #3a68a8; }
+.project-menu-sep { margin-top: 4px; padding-top: 4px; border-top: 1px solid #e6e2d8; }
+.project-menu-item--new { color: #2f5d9a; }

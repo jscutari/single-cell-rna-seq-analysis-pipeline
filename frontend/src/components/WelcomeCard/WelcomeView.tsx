@@ -1,4 +1,4 @@
-import logo from "../../assets/scrap-logo.png";
+import logo from "../../assets/scrap-logo.svg";
 import { Doodles } from "../Doodles/Doodles";
 import "./WelcomeCard.css";
 
