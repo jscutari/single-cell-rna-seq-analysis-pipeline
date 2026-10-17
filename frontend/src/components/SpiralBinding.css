@@ -20,3 +20,8 @@
   .binding { width: 29px; }
   .binding-loop { left: -14px; }
 }
+
+/* Collapsed sidebar: move the seam (and its spirals) to the edge of the icon rail. */
+.workbook:has(.sidebar--collapsed) { --sidebar-width: 73px; }
+.workbook:has(.sidebar--collapsed) .binding { width: 29px; }
+.workbook:has(.sidebar--collapsed) .binding-loop { left: -14px; }

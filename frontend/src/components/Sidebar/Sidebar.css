@@ -127,3 +127,39 @@ aside.sidebar {
   .project { width: 54px; height: 56px; min-height: 56px; justify-content: center; padding: 0; gap: 0; }
   .sidebar-foot { align-items: center; flex-direction: column; gap: 15px; }
 }
+
+/* Collapse toggle, top right of the brand row */
+.sidebar-toggle {
+  margin-left: auto; width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; color: #4f6890;
+}
+.sidebar-toggle:hover { background: rgba(181, 211, 247, .2); border-color: #d4dbe5; }
+.sidebar-toggle .icon { width: 21px; height: 21px; }
+
+/* Rename a chat: pencil appears on hover; double-click the title works too */
+.chat-row-item { position: relative; }
+.chat-row-item .chat-item { padding-right: 36px; }
+.chat-rename-button {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; display: grid; place-items: center; opacity: 0;
+  border: 0; border-radius: 6px; background: transparent; color: #4f6890;
+}
+.chat-row-item:hover .chat-rename-button, .chat-rename-button:focus-visible { opacity: 1; }
+.chat-rename-button:hover { background: rgba(181, 211, 247, .3); }
+.chat-rename-button .icon { width: 15px; height: 15px; }
+.chat-rename {
+  width: 100%; min-height: 34px; padding: 5px 10px 5px 22px; font: inherit; font-size: 15px; color: var(--ink);
+  border: 1px solid #85aee8; border-radius: 6px; background: #fff; outline: none;
+}
+
+/* Collapsed: a narrow rail with icons only (same layout as the narrow-screen rail) */
+aside.sidebar--collapsed { flex-basis: 73px; width: 73px; padding: 16px 8px; transition: width .15s ease; }
+.sidebar--collapsed .brand { flex-direction: column; justify-content: center; gap: 8px; margin: 0; }
+.sidebar--collapsed .brand-logo { width: 42px; }
+.sidebar--collapsed .sidebar-toggle { margin-left: 0; }
+.sidebar--collapsed .brand-copy, .sidebar--collapsed .sidebar-heading, .sidebar--collapsed .project-meta,
+.sidebar--collapsed .project-chevron, .sidebar--collapsed .foot-link span, .sidebar--collapsed .new-project span { display: none; }
+.sidebar--collapsed .new-project { width: 53px; height: 49px; margin: 12px auto 20px; padding: 0; justify-content: center; }
+.sidebar--collapsed .projects { align-items: center; margin: 0; }
+.sidebar--collapsed .project { width: 54px; height: 56px; min-height: 56px; justify-content: center; padding: 0; gap: 0; }
+.sidebar--collapsed .sidebar-foot { align-items: center; flex-direction: column; gap: 15px; }

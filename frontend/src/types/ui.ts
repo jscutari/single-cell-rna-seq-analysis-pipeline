@@ -12,6 +12,8 @@ export interface Chat {
   project_id: string;
   title: string;
   created_at: string;
+  /** Where the title came from: numbered by default, generated from the first message, or typed by the user. */
+  title_source?: "default" | "auto" | "user";
 }
 
 /** What the main page is showing. */
@@ -20,7 +22,7 @@ export type View =
   | { kind: "project"; projectId: string }
   | { kind: "chat"; projectId: string; chatId: string };
 
-export type FileKind = "pdf" | "csv" | "tsv" | "image" | "text" | "h5ad" | "other";
+export type FileKind = "pdf" | "csv" | "tsv" | "image" | "text" | "notebook" | "h5ad" | "other";
 
 /** A file in a project (dataset, paper, table, figure). Shown on the project page. */
 export interface ProjectFile {

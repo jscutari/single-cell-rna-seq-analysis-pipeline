@@ -95,3 +95,7 @@
   .file-row { grid-template-columns: 36px minmax(0, 1fr) auto; }
   .file-size, .file-time { display: none; }
 }
+
+.project-actions { display: flex; align-items: center; gap: 10px; }
+.upload-button--secondary { background: #fbfaf6; color: #2f5d9a; border-color: #b9cfee; box-shadow: 0 1px 2px rgba(83, 77, 67, .08); }
+.upload-button--secondary:hover { background: var(--blue-pale); }

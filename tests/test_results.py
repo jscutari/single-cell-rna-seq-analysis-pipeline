@@ -106,6 +106,7 @@ def test_list_files_inventory(tmp_path, summary, brief):
     assert by_path["hypotheses/h1/figures/cell003_0.png"]["summary"] == "Figure (cell 3): IFN is up"
     assert by_path["hypotheses/h1/figures/cell003_0.png"]["kind"] == "image"
     assert by_path["sources/wilk2020.pdf"]["kind"] == "pdf" and by_path["processed.h5ad"]["kind"] == "h5ad"
+    assert by_path["hypotheses/h1/h1.ipynb"]["kind"] == "notebook"  # opens in the app's notebook viewer
     assert by_path["hypotheses/h1/tables/scores_01.csv"]["summary"] == "Donor-level scores: IFN is up"
     f = by_path["report.md"]
     assert set(f) == {"id", "project_id", "name", "kind", "size_bytes", "path", "added_at", "summary"}

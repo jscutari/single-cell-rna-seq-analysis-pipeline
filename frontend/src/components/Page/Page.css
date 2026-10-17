@@ -32,3 +32,16 @@
   .topbar { padding-left: 29px; }
   .page--with-panel .page-view { right: 0; }
 }
+
+.round-action--on { background: var(--blue-pale); border-color: #85aee8; color: #2f5d9a; }
+
+/* Drag-and-drop: a dashed sheet over the page while files are dragged in */
+.drop-overlay {
+  position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; pointer-events: none;
+  background: rgba(228, 238, 251, .55);
+}
+.drop-sheet {
+  padding: 26px 38px; font-size: 20px; color: #2f5d9a; background: #fbfaf6;
+  border: 2px dashed #85aee8; border-radius: 14px; transform: rotate(-.6deg);
+  box-shadow: 0 6px 18px rgba(83, 77, 67, .16);
+}

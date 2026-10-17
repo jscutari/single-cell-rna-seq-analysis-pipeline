@@ -1,8 +1,9 @@
+import { useEffect, useRef, useState } from "react";
 import logo from "../../assets/scrap-logo.png";
 import { relativeTime } from "../../lib/relativeTime";
 import type { ProjectSummary } from "../../types/schemas";
 import type { Chat, View } from "../../types/ui";
-import { ChevronDownIcon, FolderIcon, GearIcon, HelpIcon, PlusIcon } from "../icons/Icons";
+import { ChevronDownIcon, FolderIcon, GearIcon, HelpIcon, PencilIcon, PlusIcon, SidebarIcon } from "../icons/Icons";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -10,9 +11,12 @@ interface SidebarProps {
   chatsByProject: Record<string, Chat[]>;
   view: View;
   expandedProjectId: string | null;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
   onSelectProject: (projectId: string) => void;
   onSelectChat: (projectId: string, chatId: string) => void;
   onNewChat: (projectId: string) => void;
+  onRenameChat?: (projectId: string, chatId: string, title: string) => void;
   onNewProject: () => void;
 }
 
@@ -21,21 +25,36 @@ export function Sidebar({
   chatsByProject,
   view,
   expandedProjectId,
+  collapsed = false,
+  onToggleCollapsed,
   onSelectProject,
   onSelectChat,
   onNewChat,
+  onRenameChat,
   onNewProject,
 }: SidebarProps) {
   return (
-    <aside className="sidebar" aria-label="Projects navigation">
+    <aside className={collapsed ? "sidebar sidebar--collapsed" : "sidebar"} aria-label="Projects navigation">
       <header className="brand">
         <img className="brand-logo" src={logo} alt="SCRAP DNA wastebasket logo" />
         <div className="brand-copy">
           <strong className="brand-name">SCRAP</strong>
         </div>
+        {onToggleCollapsed && (
+          <button
+            className="sidebar-toggle"
+            type="button"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={onToggleCollapsed}
+          >
+            <SidebarIcon />
+          </button>
+        )}
       </header>
 
-      <button className="new-project" type="button" onClick={onNewProject}>
+      <button className="new-project" type="button" onClick={onNewProject} title="New Project">
         <PlusIcon />
         <span>New Project</span>
       </button>
@@ -53,7 +72,7 @@ export function Sidebar({
                 expanded={expanded}
                 onSelect={() => onSelectProject(project.id)}
               />
-              {expanded && (
+              {expanded && !collapsed && (
                 <ul className="chat-list" aria-label={`${project.name} chats`}>
                   <li>
                     <button className="chat-item chat-item--new" type="button" onClick={() => onNewChat(project.id)}>
@@ -61,21 +80,15 @@ export function Sidebar({
                       <span>New chat</span>
                     </button>
                   </li>
-                  {chats.map((chat) => {
-                    const active = view.kind === "chat" && view.chatId === chat.id;
-                    return (
-                      <li key={chat.id}>
-                        <button
-                          className={active ? "chat-item chat-item--selected" : "chat-item"}
-                          type="button"
-                          aria-current={active ? "page" : undefined}
-                          onClick={() => onSelectChat(project.id, chat.id)}
-                        >
-                          <span className="chat-title">{chat.title}</span>
-                        </button>
-                      </li>
-                    );
-                  })}
+                  {chats.map((chat) => (
+                    <ChatItem
+                      key={chat.id}
+                      chat={chat}
+                      active={view.kind === "chat" && view.chatId === chat.id}
+                      onSelect={() => onSelectChat(project.id, chat.id)}
+                      onRename={onRenameChat && ((title) => onRenameChat(project.id, chat.id, title))}
+                    />
+                  ))}
                 </ul>
               )}
             </div>
@@ -84,16 +97,86 @@ export function Sidebar({
       </nav>
 
       <footer className="sidebar-foot">
-        <button className="foot-link" type="button">
+        <button className="foot-link" type="button" title="Help & Docs">
           <HelpIcon />
           <span>Help &amp; Docs</span>
         </button>
-        <button className="foot-link" type="button">
+        <button className="foot-link" type="button" title="Settings">
           <GearIcon />
           <span>Settings</span>
         </button>
       </footer>
     </aside>
+  );
+}
+
+function ChatItem({
+  chat,
+  active,
+  onSelect,
+  onRename,
+}: {
+  chat: Chat;
+  active: boolean;
+  onSelect: () => void;
+  onRename?: (title: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(chat.title);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  const startEditing = () => {
+    if (!onRename) return;
+    setDraft(chat.title);
+    setEditing(true);
+  };
+  const finish = (save: boolean) => {
+    setEditing(false);
+    const title = draft.trim();
+    if (save && title && title !== chat.title) onRename?.(title);
+  };
+
+  if (editing) {
+    return (
+      <li>
+        <input
+          ref={inputRef}
+          className="chat-rename"
+          aria-label={`Rename ${chat.title}`}
+          value={draft}
+          maxLength={80}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => finish(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") finish(true);
+            if (e.key === "Escape") finish(false);
+          }}
+        />
+      </li>
+    );
+  }
+  return (
+    <li className="chat-row-item">
+      <button
+        className={active ? "chat-item chat-item--selected" : "chat-item"}
+        type="button"
+        aria-current={active ? "page" : undefined}
+        title={chat.title}
+        onClick={onSelect}
+        onDoubleClick={startEditing}
+      >
+        <span className="chat-title">{chat.title}</span>
+      </button>
+      {onRename && (
+        <button className="chat-rename-button" type="button" aria-label={`Rename ${chat.title}`} onClick={startEditing}>
+          <PencilIcon />
+        </button>
+      )}
+    </li>
   );
 }
 

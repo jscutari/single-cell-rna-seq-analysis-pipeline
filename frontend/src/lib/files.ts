@@ -15,6 +15,7 @@ const BY_EXTENSION: Record<string, FileKind> = {
   json: "text",
   log: "text",
   py: "text",
+  ipynb: "notebook",
   h5ad: "h5ad",
 };
 
