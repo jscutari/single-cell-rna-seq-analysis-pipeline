@@ -1,7 +1,7 @@
 // The only place the UI talks to the backend. Components call these functions,
 // never fetch() directly. Flip USE_MOCK off once FastAPI (proxied at /api) is up.
 import { mockProjects } from "../data/mockProjects";
-import type { ProjectSummary } from "../types/schemas";
+import type { ChatMessage, ProjectSummary } from "../types/schemas";
 
 const USE_MOCK = true;
 
@@ -30,12 +30,22 @@ export async function createProject(name: string): Promise<ProjectSummary> {
   return request("/projects", { method: "POST", body: JSON.stringify({ name }) });
 }
 
-export async function sendMessage(projectId: string, text: string): Promise<void> {
+const MOCK_REPLY = "Trademarked 2026  Jiggle by Kerry";
+const MOCK_REPLY_DELAY_MS = 600;
+
+/** Sends a user message and resolves with the assistant's reply. */
+export async function sendMessage(projectId: string, text: string): Promise<ChatMessage> {
   if (USE_MOCK) {
-    console.info("[mock] sendMessage", projectId, text);
-    return;
+    await new Promise((resolve) => setTimeout(resolve, MOCK_REPLY_DELAY_MS));
+    return {
+      id: crypto.randomUUID(),
+      project_id: projectId,
+      role: "assistant",
+      content: MOCK_REPLY,
+      created_at: new Date().toISOString(),
+    };
   }
-  await request(`/projects/${projectId}/messages`, {
+  return request(`/projects/${projectId}/messages`, {
     method: "POST",
     body: JSON.stringify({ content: text }),
   });
