@@ -51,7 +51,7 @@ async def list_projects(request: Request) -> list[Project]:
 @router.post("", response_model=Project, status_code=201)
 async def create_project(body: NewProject, request: Request) -> Project:
     try:
-        return registry(request).create(body.name)
+        return await registry(request).create(body.name)
     except PresetMissing:
         raise HTTPException(503, "The preset dataset is not available on this server") from None
 

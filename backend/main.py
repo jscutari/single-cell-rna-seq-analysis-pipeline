@@ -31,8 +31,9 @@ def create_app(settings: Settings | None = None, orchestrator=None, store: InMem
         if app.state.store is None:
             app.state.store = await open_store(settings)  # refuses to start if Postgres is unreachable
         app.state.hub = EventHub(app.state.store, settings.subscriber_queue_size)
-        app.state.projects.load()
-        app.state.projects.ensure_preset_project()
+        app.state.projects = ProjectRegistry(settings.data_root, settings.preset, pool=getattr(app.state.store, "pool", None))
+        await app.state.projects.load_all()
+        await app.state.projects.ensure_preset_project()
         if app.state.orchestrator is None:
             app.state.orchestrator = load_orchestrator(settings)
         app.state.runs = RunManager(app.state.hub, app.state.orchestrator, app.state.projects)
@@ -47,7 +48,6 @@ def create_app(settings: Settings | None = None, orchestrator=None, store: InMem
     app.state.settings = settings
     app.state.store = store  # None: opened at startup from settings.store
     app.state.orchestrator = orchestrator
-    app.state.projects = ProjectRegistry(settings.data_root, settings.preset)
     app.include_router(projects.router)
     app.include_router(state.router)
     app.include_router(sse.router)

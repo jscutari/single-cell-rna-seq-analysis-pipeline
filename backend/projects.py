@@ -1,10 +1,13 @@
-"""Projects: one folder per project under DATA_ROOT, described by project.json.
+"""Projects: a row in Postgres plus one folder per project under DATA_ROOT.
 
-    $DATA_ROOT/<project_id>/project.json   {id, name, dataset_path, status, created_at}
+    projects table                         the list (source of truth with Postgres)
+    $DATA_ROOT/<project_id>/project.json   {id, name, dataset_path, status, created_at} (readable backup)
     $DATA_ROOT/<project_id>/dataset.h5ad   hard link to the preset (what the orchestrator reads)
 
-The folders are the registry, so projects survive a backend restart without a
-database. Folders without project.json (raw/, _cache/, ...) are not projects.
+Without a database (SCRAP_STORE=memory) the folders are the registry. With one,
+folders that aren't in the table yet (e.g. from before the database existed)
+are imported once at startup. Folders without project.json (raw/, _cache/, ...)
+are not projects.
 """
 
 import json
@@ -32,14 +35,39 @@ def valid_id(project_id: str) -> bool:
 
 
 class ProjectRegistry:
-    def __init__(self, data_root: Path, preset: Path) -> None:
+    def __init__(self, data_root: Path, preset: Path, pool=None) -> None:
         self.data_root = data_root
         self.preset = preset
+        self.pool = pool  # asyncpg pool when projects live in Postgres
         self._projects: dict[str, Project] = {}
 
+    async def load_all(self) -> None:
+        """Load the list from Postgres (importing new folders once), or from the folders."""
+        if self.pool is None:
+            self.load()
+            return
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("SELECT id, name, dataset_path, created_at FROM projects")
+        self._projects = {r["id"]: Project(**dict(r)) for r in rows}
+        on_disk = self._read_folders()
+        new = [p for pid, p in on_disk.items() if pid not in self._projects]
+        if new:
+            async with self.pool.acquire() as conn:
+                await conn.executemany(
+                    "INSERT INTO projects (id, name, dataset_path, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING",
+                    [(p.id, p.name, p.dataset_path, p.created_at) for p in new],
+                )
+            log.info("Imported %d project folder(s) into Postgres: %s", len(new), ", ".join(p.id for p in new))
+            self._projects.update({p.id: p for p in new})
+        for pid in self._projects.keys() - on_disk.keys():
+            log.warning("Project %s is in the database but its folder %s is missing", pid, self.data_root / pid)
+
     def load(self) -> None:
-        """Read every <id>/project.json under DATA_ROOT."""
-        self._projects.clear()
+        """Read every <id>/project.json under DATA_ROOT (the registry without a database)."""
+        self._projects = self._read_folders()
+
+    def _read_folders(self) -> dict[str, Project]:
+        found: dict[str, Project] = {}
         for meta in sorted(self.data_root.glob("*/project.json")):
             try:
                 project = Project.model_validate_json(meta.read_text())
@@ -49,18 +77,19 @@ class ProjectRegistry:
             if project.id != meta.parent.name or not valid_id(project.id):
                 log.warning("Skipping %s: id does not match its folder", meta)
                 continue
-            self._projects[project.id] = project
+            found[project.id] = project
+        return found
 
-    def ensure_preset_project(self) -> None:
+    async def ensure_preset_project(self) -> None:
         """Create the COVID demo project once, if its dataset is available."""
         if PRESET_ID in self._projects:
             return
         try:
-            self.create(PRESET_NAME, project_id=PRESET_ID)
+            await self.create(PRESET_NAME, project_id=PRESET_ID)
         except PresetMissing:
             log.warning("Preset dataset %s not found; not seeding %s", self.preset, PRESET_ID)
 
-    def create(self, name: str, project_id: str | None = None) -> Project:
+    async def create(self, name: str, project_id: str | None = None) -> Project:
         if not self.preset.is_file():
             raise PresetMissing(str(self.preset))
         project_id = project_id or new_id()
@@ -71,6 +100,12 @@ class ProjectRegistry:
             _link_or_copy(self.preset, dataset)
             project = Project(id=project_id, name=name, dataset_path=str(dataset))
             _write_json(folder / "project.json", project.model_dump(mode="json"))
+            if self.pool is not None:
+                async with self.pool.acquire() as conn:
+                    await conn.execute(
+                        "INSERT INTO projects (id, name, dataset_path, created_at) VALUES ($1, $2, $3, $4)",
+                        project.id, project.name, project.dataset_path, project.created_at,
+                    )
         except Exception:
             shutil.rmtree(folder, ignore_errors=True)  # don't leave half a project behind
             raise
