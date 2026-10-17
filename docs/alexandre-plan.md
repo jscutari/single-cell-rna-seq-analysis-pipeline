@@ -2,11 +2,11 @@
 
 ## Progress
 - [x] 0. Shared schemas + events
-- [ ] 1. Brev box + `setup_brev.sh` *(script written; run it on the box)*
+- [x] 1. Brev box + `setup_brev.sh` (H100 SXM on Nebius: `consistent-brown-moth`)
 - [ ] 2. `serve_vllm.sh` *(script written; run it once weights finish downloading)*
-- [ ] 3. `agents/llm.py`
-- [ ] 4. Sandbox Dockerfile
-- [ ] 5. `preprocess.py`
+- [ ] 3. `agents/llm.py` *(written; test once vLLM is up)*
+- [x] 4. Sandbox Dockerfile
+- [x] 5. `preprocess.py` (44,649 cells → `~/workspace/data/covid_pbmc/`)
 - [ ] 6. `kernel_manager.py`
 - [ ] 7. Prompts + `checks.py`
 - [ ] 8. Single-hypothesis loop (first finding)
