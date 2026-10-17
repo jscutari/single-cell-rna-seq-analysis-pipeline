@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createProject, listChats, listFiles, listFindings, listProjects, sendMessage } from "./api/client";
 import { useProjectStream } from "./api/useProjectStream";
+import { fileKind } from "./lib/files";
 import { newId } from "./lib/ids";
 import { ChatView } from "./components/ChatView/ChatView";
 import { Composer } from "./components/Composer/Composer";
+import { FilePreview } from "./components/FilePreview/FilePreview";
 import { Page } from "./components/Page/Page";
 import { ProjectView } from "./components/ProjectView/ProjectView";
 import { Sidebar } from "./components/Sidebar/Sidebar";
@@ -27,6 +29,7 @@ export default function App() {
   const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
   const [filesByProject, setFilesByProject] = useState<Record<string, ProjectFile[]>>({});
   const [findingsByProject, setFindingsByProject] = useState<Record<string, FindingCard[]>>({});
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   /** Messages sent per chat that are still waiting for a reply. */
   const [pendingCount, setPendingCount] = useState<Record<string, number>>({});
 
@@ -52,6 +55,17 @@ export default function App() {
   useEffect(() => {
     const all = waiting.current;
     return () => all.forEach((list) => list.forEach((w) => clearTimeout(w.timer)));
+  }, []);
+
+  // The preview belongs to a project page; leaving the page closes it.
+  const viewKey = view.kind === "project" ? view.projectId : view.kind;
+  useEffect(() => setPreviewFileId(null), [viewKey]);
+
+  // Uploaded files are held as object URLs; release them when the app goes away.
+  const objectUrls = useRef<string[]>([]);
+  useEffect(() => {
+    const urls = objectUrls.current;
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
   const setChats = (projectId: string, update: (chats: Chat[]) => Chat[]) => {
@@ -104,6 +118,25 @@ export default function App() {
         projectDataRequested.current.delete(projectId);
         console.error("Could not load project files and findings", error);
       });
+  };
+
+  /** Adds local files to a project (kept in memory until the backend accepts uploads). */
+  const uploadFiles = (projectId: string, picked: File[]) => {
+    const added: ProjectFile[] = picked.map((file) => {
+      const url = URL.createObjectURL(file);
+      objectUrls.current.push(url);
+      return {
+        id: newId(),
+        project_id: projectId,
+        name: file.name,
+        kind: fileKind(file.name),
+        size_bytes: file.size,
+        url,
+        added_at: new Date().toISOString(),
+      };
+    });
+    setFilesByProject((all) => ({ ...all, [projectId]: [...added, ...(all[projectId] ?? [])] }));
+    setPreviewFileId(added[0].id);
   };
 
   const changePending = (chatId: string, delta: number) =>
@@ -210,16 +243,29 @@ export default function App() {
     if (addMessages(chatId, [event.payload]) && waiting.current.get(projectId)?.length) stopWaiting(projectId);
   });
 
+  const closePreview = useCallback(() => setPreviewFileId(null), []);
+
   const project = view.kind === "home" ? undefined : projects.find((p) => p.id === view.projectId);
   const messages = view.kind === "chat" ? (messagesByChat[view.chatId] ?? []) : [];
   const awaitingReply = view.kind === "chat" && (pendingCount[view.chatId] ?? 0) > 0;
   const composer = <Composer onSend={handleSend} onAttach={() => console.info("[mock] attach dataset")} />;
 
   let content;
+  let panel;
   if (view.kind === "project" && project) {
+    const files = filesByProject[project.id] ?? [];
+    const previewFile = files.find((f) => f.id === previewFileId);
     content = (
-      <ProjectView project={project} files={filesByProject[project.id] ?? []} findings={findingsByProject[project.id] ?? []} />
+      <ProjectView
+        project={project}
+        files={files}
+        findings={findingsByProject[project.id] ?? []}
+        activeFileId={previewFile?.id ?? null}
+        onOpenFile={(file) => setPreviewFileId((current) => (current === file.id ? null : file.id))}
+        onUpload={(picked) => uploadFiles(project.id, picked)}
+      />
     );
+    panel = previewFile && <FilePreview file={previewFile} onClose={closePreview} />;
   } else if (view.kind === "chat" && (messages.length || awaitingReply)) {
     content = <ChatView messages={messages} awaitingReply={awaitingReply} />;
   } else {
@@ -239,7 +285,7 @@ export default function App() {
         onNewProject={handleNewProject}
       />
       <SpiralBinding />
-      <Page view={content} composer={view.kind === "project" ? undefined : composer} />
+      <Page view={content} composer={view.kind === "project" ? undefined : composer} panel={panel} />
     </Workbook>
   );
 }

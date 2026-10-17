@@ -3,7 +3,8 @@ import { relativeTime } from "../../lib/relativeTime";
 import type { ProjectSummary } from "../../types/schemas";
 import type { FindingCard, ProjectFile } from "../../types/ui";
 import { FindingChart } from "../Charts/FindingChart";
-import { FileIcon } from "../icons/Icons";
+import { useRef } from "react";
+import { FileIcon, UploadIcon } from "../icons/Icons";
 import "./ProjectView.css";
 
 interface ProjectViewProps {
@@ -12,6 +13,7 @@ interface ProjectViewProps {
   findings: FindingCard[];
   activeFileId?: string | null;
   onOpenFile?: (file: ProjectFile) => void;
+  onUpload?: (files: File[]) => void;
 }
 
 const KIND_LABEL: Record<ProjectFile["kind"], string> = {
@@ -28,7 +30,8 @@ const VERDICT_LABEL = { approve: "Critic approved", revise: "Critic: revise", re
 const NOVELTY_LABEL = { known: "Known", partly_known: "Partly known", not_found_in_sources: "Not found in sources" } as const;
 
 /** A project's page: its files and key findings. */
-export function ProjectView({ project, files, findings, activeFileId, onOpenFile }: ProjectViewProps) {
+export function ProjectView({ project, files, findings, activeFileId, onOpenFile, onUpload }: ProjectViewProps) {
+  const fileInput = useRef<HTMLInputElement>(null);
   return (
     <div className="project-page">
       <header className="project-page-header">
@@ -44,6 +47,27 @@ export function ProjectView({ project, files, findings, activeFileId, onOpenFile
           <h2 id="files-heading" className="project-section-title">
             Files
           </h2>
+          {onUpload && (
+            <>
+              <button className="upload-button" type="button" onClick={() => fileInput.current?.click()}>
+                <UploadIcon />
+                <span>Upload file</span>
+              </button>
+              <input
+                ref={fileInput}
+                className="sr-only"
+                type="file"
+                multiple
+                aria-label="Upload files"
+                tabIndex={-1}
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files ?? []);
+                  if (picked.length) onUpload(picked);
+                  e.target.value = ""; // allow picking the same file again
+                }}
+              />
+            </>
+          )}
         </div>
         {files.length ? (
           <ul className="file-list">

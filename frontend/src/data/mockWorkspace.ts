@@ -53,10 +53,10 @@ export function mockFilesFor(projectId: string): ProjectFile[] {
   });
   const files = [
     file("processed.h5ad", "h5ad", 1.8 * 1024 * MB, 30, null, "44,649 cells · 13 donors · 7 COVID-19 / 6 healthy"),
-    file("wilk_2020_covid_pbmc.pdf", "pdf", 3 * KB, 26, "/mock-files/wilk_2020_covid_pbmc.pdf", "Wilk et al. 2020, Nature Medicine"),
-    file("de_results.csv", "csv", 2 * KB, 5, "/mock-files/de_results.csv", "Pseudobulk DE, CD14 monocytes"),
-    file("umap_clusters.svg", "image", 5 * KB, 4, "/mock-files/umap_clusters.svg", "UMAP coloured by cell type"),
-    file("analysis_notes.txt", "text", 1 * KB, 1, "/mock-files/analysis_notes.txt"),
+    file("wilk_2020_covid_pbmc.pdf", "pdf", 1095, 26, "/mock-files/wilk_2020_covid_pbmc.pdf", "Wilk et al. 2020, Nature Medicine"),
+    file("de_results.csv", "csv", 1017, 5, "/mock-files/de_results.csv", "Pseudobulk DE, CD14 monocytes"),
+    file("umap_clusters.svg", "image", 46_907, 4, "/mock-files/umap_clusters.svg", "UMAP coloured by cell type"),
+    file("analysis_notes.txt", "text", 671, 1, "/mock-files/analysis_notes.txt"),
   ];
   return projectId === "p1" ? files : files.slice(2);
 }

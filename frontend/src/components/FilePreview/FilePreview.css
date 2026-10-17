@@ -1,0 +1,42 @@
+/* Right-side preview panel, docked under the topbar like a clipped-in sheet. */
+.preview-panel {
+  position: absolute; z-index: 7; top: 65px; right: 18px; bottom: 18px; width: var(--preview-width);
+  display: flex; flex-direction: column;
+  background: #fbfaf6; border: 1px solid #e3dfd4; border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(83, 77, 67, .16), 0 1px 3px rgba(91, 85, 78, .1);
+}
+.preview-head {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 12px 18px;
+  border-bottom: 1px solid #e6e2d8;
+}
+.preview-title { flex: 1; min-width: 0; }
+.preview-name { margin: 0; font-size: 17px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preview-meta { margin: 3px 0 0; font-size: 13px; color: var(--ink-soft); }
+.preview-close {
+  width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid #d4d6db; background: #eef0f3;
+}
+.preview-close:hover { background: #e4e7ed; }
+.preview-close .icon { width: 16px; height: 16px; }
+
+.preview-body { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+.preview-image { max-width: 100%; height: auto; border: 1px solid #e6e2d8; background: #fff; }
+.preview-pdf { flex: 1; width: 100%; min-height: 420px; border: 1px solid #e6e2d8; background: #fff; }
+.preview-text {
+  margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; line-height: 1.55; color: #2c3e5c;
+}
+.preview-table-wrap { overflow: auto; border: 1px solid #e6e2d8; border-radius: 6px; background: #fff; }
+.preview-table { border-collapse: collapse; width: 100%; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+.preview-table th, .preview-table td { padding: 5px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid #eef0f3; }
+.preview-table th { position: sticky; top: 0; background: #f2f5fa; color: var(--ink); font-weight: 600; }
+.preview-table tbody tr:nth-child(even) { background: #fafbfc; }
+.preview-note { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.preview-unavailable {
+  padding: 18px; border: 1px dashed #c9cfd6; border-radius: 10px; display: flex; flex-direction: column; gap: 8px;
+}
+.preview-summary { margin: 0; font-size: 16px; }
+
+@media (max-width: 740px) {
+  .preview-panel { left: 12px; right: 12px; width: auto; }
+}

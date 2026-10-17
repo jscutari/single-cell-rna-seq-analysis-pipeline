@@ -7,14 +7,17 @@ interface PageProps {
   view: ReactNode;
   /** Chat box pinned to the bottom; omitted on the project page. */
   composer?: ReactNode;
+  /** Side panel docked on the right (file preview); the view shrinks to make room. */
+  panel?: ReactNode;
 }
 
-export function Page({ view, composer }: PageProps) {
+export function Page({ view, composer, panel }: PageProps) {
   return (
-    <main className="page">
+    <main className={panel ? "page page--with-panel" : "page"}>
       <TopBar />
       <div className="page-view">{view}</div>
       {composer}
+      {panel}
     </main>
   );
 }

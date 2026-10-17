@@ -1,0 +1,16 @@
+SCRAP analysis notes — COVID-19 PBMC (Wilk et al. 2020, GSE150728)
+
+Dataset
+- 44,649 cells after QC, 13 donors (7 COVID-19, 6 healthy)
+- Counts normalized to 10k per cell, log1p; HVGs: 3,000
+
+Checks the critic applied
+- Pseudobulk by donor before differential expression
+- Benjamini-Hochberg correction across genes
+- Effect sizes reported (log2 fold change)
+- Donor and batch confounding checked; >= 30 cells per donor and group
+
+Findings so far
+1. Interferon-stimulated genes up in CD14 monocytes (IFI27, ISG15, MX1).
+2. HLA class II genes down in CD14 monocytes (HLA-DRA log2FC -1.1).
+3. Developing-neutrophil cluster mostly in ventilated patients (needs revision).

@@ -303,3 +303,53 @@ describe("project page", () => {
     expect(api.listFiles).not.toHaveBeenCalled();
   });
 });
+
+describe("file preview", () => {
+  const fileButton = (name: string) => screen.getByRole("button", { name: new RegExp(name.replace(".", "\\.")) });
+  const panel = () => screen.queryByRole("complementary", { name: /^Preview of/ });
+
+  it("opens a file in the right panel and closes it with Escape, the close button, or a second click", async () => {
+    await renderApp();
+    await click(projectButton("Project 1"));
+    await click(fileButton("umap_clusters.svg"));
+    expect(panel()!.getAttribute("aria-label")).toBe("Preview of umap_clusters.svg");
+    expect(fileButton("umap_clusters.svg").getAttribute("aria-current")).toBe("true");
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    expect(panel()).toBeNull();
+    await click(fileButton("umap_clusters.svg"));
+    await click(screen.getByLabelText("Close preview"));
+    expect(panel()).toBeNull();
+    await click(fileButton("umap_clusters.svg"));
+    await click(fileButton("umap_clusters.svg"));
+    expect(panel()).toBeNull();
+  });
+
+  it("switches the preview when another file is clicked, and closes it when leaving the page", async () => {
+    await renderApp();
+    await click(projectButton("Project 1"));
+    await click(fileButton("umap_clusters.svg"));
+    await click(fileButton("processed.h5ad"));
+    expect(panel()!.getAttribute("aria-label")).toBe("Preview of processed.h5ad");
+    await openChat("Project 1", "Chat 1");
+    expect(panel()).toBeNull();
+    await click(projectButton("Project 1"));
+    expect(panel()).toBeNull();
+  });
+
+  it("adds uploaded files to the project and previews them", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:mock-1");
+    URL.revokeObjectURL = vi.fn();
+    await renderApp();
+    await click(projectButton("Project 1"));
+    const upload = screen.getByLabelText("Upload files") as HTMLInputElement;
+    const picked = new File(["<svg/>"], "my_plot.svg", { type: "image/svg+xml" });
+    await act(async () => {
+      fireEvent.change(upload, { target: { files: [picked] } });
+    });
+    expect(document.querySelector(".file-row .file-name")!.textContent).toBe("my_plot.svg");
+    expect(panel()!.getAttribute("aria-label")).toBe("Preview of my_plot.svg");
+    expect(screen.getByRole("img", { name: "my_plot.svg" }).getAttribute("src")).toBe("blob:mock-1");
+  });
+});

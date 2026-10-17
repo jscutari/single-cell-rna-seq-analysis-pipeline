@@ -25,7 +25,10 @@
 
 /* Area between the topbar and the composer where the active view renders. */
 .page-view { position: absolute; inset: 0; }
+.page { --preview-width: min(440px, 42%); }
+.page--with-panel .page-view { right: calc(var(--preview-width) + 18px); }
 
 @media (max-width: 740px) {
   .topbar { padding-left: 29px; }
+  .page--with-panel .page-view { right: 0; }
 }

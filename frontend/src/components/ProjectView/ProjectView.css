@@ -30,6 +30,14 @@
   border: 1px dashed #c9cfd6; border-radius: 12px; background: rgba(251, 250, 246, .6);
 }
 
+.upload-button {
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 9px;
+  border: 1px solid #85aee8; background: #94b9ed; color: #fff; font-size: 15px;
+  box-shadow: 0 2px 1px #98add15c, inset 0 1px 1px #e3edfcaa;
+}
+.upload-button:hover { background: #8bb2ea; }
+.upload-button .icon { width: 18px; height: 18px; }
+
 /* Files */
 .file-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .file-row {
@@ -79,6 +87,9 @@
 .chip--revise { background: #fbf0d9; color: #85631f; }
 .chip--reject { background: #fbe1e3; color: #9c3f4a; }
 .chip--novelty { background: #ece8f7; color: #5b4f8a; }
+
+.page--with-panel .file-row { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.page--with-panel .file-size, .page--with-panel .file-time { display: none; }
 
 @media (max-width: 1050px) {
   .file-row { grid-template-columns: 36px minmax(0, 1fr) auto; }
