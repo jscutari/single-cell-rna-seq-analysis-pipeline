@@ -1,1 +1,26 @@
-# postgres, backend, frontend
+# Postgres for the backend: the durable copy of every event, the project list and
+# the full LLM calls. The backend itself runs on the host with uv (it drives
+# Docker for the analysis sandbox), so it is not a service here.
+#
+#   cp .env.example .env   # then set a real POSTGRES_PASSWORD
+#   docker compose up -d db
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-scrap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-scrap}
+    ports:
+      - "127.0.0.1:5432:5432"   # local only; reach it over SSH
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

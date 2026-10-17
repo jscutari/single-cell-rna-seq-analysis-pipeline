@@ -93,3 +93,63 @@ def live_server(settings, orchestrator):
     yield app, f"http://127.0.0.1:{port}"
     server.should_exit = True
     thread.join(timeout=5)
+
+
+# --- Postgres (tests marked `db`; skipped when no server is reachable) ---
+
+def _server_url() -> str | None:
+    import os
+
+    from backend.config import REPO_ROOT, read_env_file
+
+    return os.environ.get("DATABASE_URL") or read_env_file(REPO_ROOT / ".env").get("DATABASE_URL")
+
+
+def _run(coro):
+    import asyncio
+
+    return asyncio.run(coro)
+
+
+@pytest.fixture(scope="session")
+def pg_test_db():
+    """A throwaway database on the compose Postgres for this test session."""
+    import uuid
+
+    import asyncpg
+
+    url = _server_url()
+    if not url:
+        pytest.skip("no DATABASE_URL (start Postgres: docker compose up -d db)")
+
+    async def admin(sql: str) -> None:
+        conn = await asyncpg.connect(url, timeout=3)
+        try:
+            await conn.execute(sql)
+        finally:
+            await conn.close()
+
+    name = f"scrap_test_{uuid.uuid4().hex[:10]}"
+    try:
+        _run(admin(f'CREATE DATABASE "{name}"'))
+    except Exception as error:  # server not running
+        pytest.skip(f"Postgres not reachable ({error})")
+    base, _ = url.rsplit("/", 1)
+    yield f"{base}/{name}"
+    _run(admin(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+
+
+@pytest.fixture
+def pg_url(pg_test_db):
+    """The session database, emptied before each test."""
+    import asyncpg
+
+    async def reset():
+        conn = await asyncpg.connect(pg_test_db)
+        try:
+            await conn.execute("DROP TABLE IF EXISTS events, llm_calls, projects, schema_version")
+        finally:
+            await conn.close()
+
+    _run(reset())
+    return pg_test_db

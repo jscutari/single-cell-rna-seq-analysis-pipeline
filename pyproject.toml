@@ -16,6 +16,7 @@ dependencies = [
     "sentence-transformers>=5.0",
     "fastapi>=0.142.2",
     "uvicorn>=0.54.0",
+    "asyncpg>=0.31.0",
 ]
 
 [dependency-groups]
@@ -33,6 +34,7 @@ asyncio_default_fixture_loop_scope = "function"
 markers = [
     "integration: needs Docker, the scrap-sandbox image and the COVID data (Brev box)",
     "llm: needs vLLM serving on localhost:8000",
+    "db: needs Postgres (docker compose up -d db; DATABASE_URL in the environment or .env)",
 ]
 
 [tool.uv]
