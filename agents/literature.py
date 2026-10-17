@@ -228,6 +228,8 @@ async def novelty(project_id: str, project_dir: Path, prefix: str, finding: Find
     if online:
         known = set(index.source_ids)
         await index.add([c for c in await europe_pmc(finding.claim, n=8) if c.source_id not in known])
+    if not index.chunks:  # nothing to search: "not checked" is not "not found"
+        return
     hits = await index.search(finding.claim, k=6)
     finding.sources_searched = index.source_ids
     if not hits:

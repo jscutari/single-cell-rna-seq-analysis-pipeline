@@ -13,7 +13,7 @@
 - [x] 9. Full orchestrator (3 hypotheses in parallel, 127 s end to end)
 - [x] 10. Intake agent
 - [ ] 11. Literature (11a–d written and wired in; needs the Wilk PDF to test)
-- [ ] 12. Reporter *(written; testing)*
+- [x] 12. Reporter (final report + Q&A)
 - [ ] 13. Benchmarks
 
 ## Context
