@@ -95,23 +95,51 @@ async def stop_run(project_id: str) -> None
 
 ## 5. Shared schemas (`shared/schemas.py`)
 
-Agree on these first. Field names are a starting point.
+**`shared/schemas.py` is the source of truth.** This table mirrors it; if they ever disagree, the code wins. The frontend's TypeScript types (`frontend/src/types/`) must match these field names exactly.
 
-| Model | Key fields |
+- IDs are 32-character hex strings. Timestamps are ISO 8601 in UTC.
+- `?` marks a field that can be `null`. `[]` marks a list, empty by default.
+
+| Model | Fields |
 | --- | --- |
-| `Project` | id, name, dataset_path, paper_path?, status, created_at |
-| `Brief` | project_id, organism, condition_column, condition_labels, donor_column, celltype_column, gene_id_format, prior_analyses[], goals, notes |
-| `Hypothesis` | id, project_id, title, rationale, plan_steps[], status (`planning`, `coding`, `running`, `critiquing`, `approved`, `rejected`, `failed`) |
-| `CodeCell` | id, hypothesis_id, index, source, stdout, stderr, figure_paths[], status, started_at, ended_at |
-| `LLMCall` | id, project_id, hypothesis_id?, agent, messages (JSON), reasoning, output, tool_calls (JSON), tokens_in, tokens_out, latency_ms, parent_call_id?, created_at |
-| `Finding` | id, hypothesis_id, claim, test, statistic, p_adj, effect_size, figure_path, critic_verdict, critic_notes, novelty, citations[], notebook_path |
-| `ChatMessage` | id, project_id, role (`user`, `assistant`), content, created_at |
+| `Project` | id, name, dataset_path, status, created_at |
+| `Source` | id, project_id, kind, title, path_or_url, pmid?, added_at |
+| `Brief` | project_id, organism?, condition_column?, condition_labels[], donor_column?, celltype_column?, gene_id_format?, prior_analyses[], goals, notes, online_search (bool, default false) |
+| `Hypothesis` | id, project_id, title, rationale, plan_steps[], status |
+| `CodeCell` | id, hypothesis_id, index, source, stdout, stderr, figure_paths[], status, started_at?, ended_at? |
+| `LLMCall` | id, project_id, hypothesis_id?, agent, messages (JSON list), reasoning?, output, tool_calls (JSON list), tokens_in, tokens_out, latency_ms, parent_call_id?, created_at |
+| `Finding` | id, hypothesis_id, claim, test, statistic?, p_adj?, effect_size?, figure_path?, critic_verdict?, critic_notes, novelty?, citations[], sources_searched[], notebook_path? |
+| `ChatMessage` | id, project_id, role, content, created_at |
+
+**Allowed values:**
+
+| Field | Values |
+| --- | --- |
+| `Project.status` | `created`, `intake`, `running`, `done`, `stopped`, `failed` |
+| `Source.kind` | `upload` (a PDF the user added), `europe_pmc` (an abstract found online) |
+| `Hypothesis.status` | `planning`, `coding`, `running`, `critiquing`, `approved`, `rejected`, `failed` |
+| `CodeCell.status` | `queued`, `running`, `ok`, `error`, `timeout` |
+| `Finding.critic_verdict` | `approve`, `revise`, `reject` |
+| `Finding.novelty` | `known`, `partly_known`, `not_found_in_sources` (never "novel": we can only say what the searched sources contain) |
+| `ChatMessage.role` | `user`, `assistant` |
+
+**Papers:** a project has any number of `Source` rows instead of a single `paper_path`. `citations` and `sources_searched` hold `Source` ids or PMIDs.
 
 ---
 
 ## 6. Events (`shared/events.py`)
 
-`emit(Event(type, project_id, payload))`. The backend saves each event to Postgres and pushes it over SSE.
+Agents call `emit(Event(type=..., project_id=..., payload=...))`. `payload` accepts a schema model and stores it as a JSON object. By default `emit` prints the event as JSON. At startup the backend calls `set_sink(fn)`, and from then on every event goes to `fn`, which saves it to Postgres and pushes it over SSE. `fn` must return immediately (put the event on a queue), because agents call `emit` mid-run.
+
+**Event fields (the JSON sent to the browser):**
+
+| Field | Type |
+| --- | --- |
+| `id` | 32-character hex string |
+| `type` | one of the event types below |
+| `project_id` | string |
+| `payload` | object, shaped by `type` |
+| `created_at` | ISO 8601 timestamp, UTC |
 
 | Event type | Payload | Shown in |
 | --- | --- | --- |
@@ -121,7 +149,7 @@ Agree on these first. Field names are a starting point.
 | `cell_started` / `cell_finished` | `CodeCell` | Analyses |
 | `finding` | `Finding` | Findings |
 | `chat_reply` | `ChatMessage` | Chat |
-| `stage_done` | stage name + summary | Email + toast |
+| `stage_done` | `{"stage": str, "summary": str}` | Email + toast |
 
 ---
 
@@ -181,7 +209,7 @@ vllm serve --model nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 \
 
 | Tab | Shows | Tier |
 | --- | --- | --- |
-| Projects | list; New project → upload `.h5ad` or pick preloaded COVID set, optional paper | 1 |
+| Projects | list; New project → upload `.h5ad` or pick preloaded COVID set, optionally upload papers (`Source`) | 1 |
 | Chat | intake conversation → brief; later Q&A and steering | 1 / 2 / 3 |
 | Brief | structured brief, editable | 1 |
 | Analyses | card per hypothesis with live status; drill in to code cells, outputs, plots streaming | 1 |
