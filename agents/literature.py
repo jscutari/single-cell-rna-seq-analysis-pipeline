@@ -15,6 +15,7 @@ Test on the box:  uv run python -m agents.literature
 
 import asyncio
 import json
+import logging
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -33,6 +34,7 @@ RERANK_MODEL = "nvidia/llama-nemotron-rerank-1b-v2"
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 CHUNK_CHARS = 1200
 CANDIDATES = 30  # from the embedding search, before reranking
+log = logging.getLogger("scrap.literature")
 
 
 @dataclass
@@ -143,10 +145,17 @@ class Index:
     async def add_new_pdfs(self, sources_dir: Path) -> list[str]:
         """Index any PDF in sources/ not indexed yet. Returns the new source ids."""
         known = set(self.source_ids)
-        new = [p for p in sorted(sources_dir.glob("*.pdf")) if p.stem not in known]
-        for p in new:
+        new = []
+        for p in sorted(sources_dir.glob("*.pdf")):
+            if p.stem in known:
+                continue
+            with open(p, "rb") as f:
+                if f.read(5) != b"%PDF-":  # e.g. a saved bot-check page with a .pdf name
+                    log.warning("Skipping %s: not a PDF file", p.name)
+                    continue
             await self.add(await asyncio.to_thread(_pdf_chunks, p))
-        return [p.stem for p in new]
+            new.append(p.stem)
+        return new
 
     async def search(self, query: str, k: int = 6) -> list[tuple[Chunk, float]]:
         if not self.chunks:
@@ -239,12 +248,9 @@ async def _demo() -> None:
     """Index the Wilk et al. paper and query it."""
     import time
 
+    # Publishers block scripted downloads; save the PDF from a browser and copy it here.
     project_dir = Path("/home/ubuntu/workspace/data/covid_pbmc")
     pdf = project_dir / "sources" / "wilk2020.pdf"
-    if not pdf.exists():
-        pdf.parent.mkdir(parents=True, exist_ok=True)
-        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-            pdf.write_bytes((await client.get("https://europepmc.org/articles/PMC7382903?pdf=render")).content)
     t = time.perf_counter()
     index = Index(project_dir)
     print("new sources:", await index.add_new_pdfs(pdf.parent), f"({len(index.chunks)} chunks, {time.perf_counter() - t:.1f}s)")
