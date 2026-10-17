@@ -22,7 +22,6 @@ export function WelcomeView() {
           <p className="welcome-subtitle">
             Your AI research assistant for analyzing <span className="underlined">RNA-seq data.</span>
           </p>
-          <p className="welcome-description">Ask a question, upload a dataset, or start a new analysis.</p>
         </section>
       </div>
     </>

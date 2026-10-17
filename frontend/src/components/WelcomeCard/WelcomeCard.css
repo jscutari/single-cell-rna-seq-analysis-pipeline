@@ -60,7 +60,6 @@
   content: ""; position: absolute; height: 2px; left: 0; right: -2px; bottom: -4px;
   transform: rotate(-1deg); background: #a6c9ec;
 }
-.welcome-description { font-size: 16px; color: #8290a5; margin: 9px auto 0; line-height: 1.4; }
 
 @media (max-height: 760px) {
   .welcome-paper { height: 285px; top: 44%; }
@@ -69,13 +68,11 @@
   .logo-tile img { width: 62px; height: 68px; }
   .welcome-title { font-size: 34px; margin-bottom: 8px; }
   .welcome-acronym { font-size: 13px; margin: 3px auto 7px; }
-  .welcome-description { margin-top: 7px; }
 }
 @media (max-width: 1050px) {
   .welcome-paper { width: min(540px, 66%); height: 310px; }
   .welcome-title { font-size: 35px; }
   .welcome-subtitle { font-size: 15px; }
-  .welcome-description { font-size: 14px; }
 }
 @media (max-width: 740px) {
   .welcome-paper { left: 51%; width: calc(100% - 42px); max-width: 480px; height: 275px; top: 44%; }
@@ -84,5 +81,4 @@
   .welcome-title { font-size: clamp(26px, 5vw, 33px); }
   .welcome-subtitle { white-space: normal; line-height: 1.4; font-size: 14px; }
   .welcome-acronym { font-size: 12px; white-space: normal; }
-  .welcome-description { font-size: 13px; }
 }

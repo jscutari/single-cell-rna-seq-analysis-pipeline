@@ -85,7 +85,7 @@ export function Composer({ onSend, onAttachFiles, onAttach, attachments = [], on
         id="prompt"
         className="chat-input"
         rows={1}
-        placeholder="Ask SCRAP anything about your data..."
+        placeholder="Ask SCRAP a question, upload a dataset, or start a new analysis."
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
