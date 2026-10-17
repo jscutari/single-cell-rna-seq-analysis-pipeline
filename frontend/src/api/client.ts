@@ -9,8 +9,10 @@
 //   POST /api/projects/{id}/messages {content} -> 204 (reply arrives as a chat_reply event)
 //   GET  /api/projects/{id}/events       -> SSE stream of shared Event JSON
 import { mockProjects } from "../data/mockProjects";
+import { mockChatsFor } from "../data/mockWorkspace";
 import { newId } from "../lib/ids";
 import type { ChatMessage, ProjectSummary } from "../types/schemas";
+import type { Chat } from "../types/ui";
 import { publishMockEvent } from "./mockEvents";
 
 /** Mock data unless started with VITE_USE_MOCK=false. */
@@ -48,6 +50,17 @@ export async function listMessages(projectId: string): Promise<ChatMessage[]> {
   // In mock mode the conversation only lives in the UI's state.
   if (USE_MOCK) return [];
   return request(`/projects/${projectId}/messages`);
+}
+
+/**
+ * A project's chats with their saved messages. The contract has no Chat model yet,
+ * so with the real backend the project's whole history is shown as one "Chat 1".
+ */
+export async function listChats(projectId: string): Promise<{ chats: Chat[]; messages: Record<string, ChatMessage[]> }> {
+  if (USE_MOCK) return mockChatsFor(projectId);
+  const history = await listMessages(projectId);
+  const chat: Chat = { id: `${projectId}-chat-1`, project_id: projectId, title: "Chat 1", created_at: history[0]?.created_at ?? new Date().toISOString() };
+  return { chats: [chat], messages: { [chat.id]: history } };
 }
 
 const MOCK_REPLY = "Trademarked 2026  Jiggle by Kerry";

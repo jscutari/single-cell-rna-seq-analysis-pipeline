@@ -1,31 +1,40 @@
 import { useEffect, useRef, useState } from "react";
-import { createProject, listMessages, listProjects, sendMessage } from "./api/client";
+import { createProject, listChats, listProjects, sendMessage } from "./api/client";
 import { useProjectStream } from "./api/useProjectStream";
 import { newId } from "./lib/ids";
 import { ChatView } from "./components/ChatView/ChatView";
 import { Composer } from "./components/Composer/Composer";
 import { Page } from "./components/Page/Page";
+import { ProjectView } from "./components/ProjectView/ProjectView";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { SpiralBinding } from "./components/SpiralBinding";
 import { WelcomeView } from "./components/WelcomeCard/WelcomeView";
 import { Workbook } from "./components/Workbook";
 import type { ScrapEvent } from "./types/events";
 import type { ChatMessage, ProjectSummary } from "./types/schemas";
+import type { Chat, View } from "./types/ui";
 
 /** Give up waiting for a reply after this long, so the typing dots don't spin forever. */
 const REPLY_TIMEOUT_MS = 60_000;
 
+type Timer = ReturnType<typeof setTimeout>;
+
 export default function App() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [messagesByProject, setMessagesByProject] = useState<Record<string, ChatMessage[]>>({});
-  /** Messages sent per project that are still waiting for a reply. */
+  const [view, setView] = useState<View>({ kind: "home" });
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [chatsByProject, setChatsByProject] = useState<Record<string, Chat[]>>({});
+  const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
+  /** Messages sent per chat that are still waiting for a reply. */
   const [pendingCount, setPendingCount] = useState<Record<string, number>>({});
 
   // Synchronous bookkeeping that must not wait for a re-render.
   const seenMessageIds = useRef(new Set<string>()); // drops SSE replays / history overlap
-  const replyTimers = useRef(new Map<string, ReturnType<typeof setTimeout>[]>()); // per project, oldest first
-  const historyLoaded = useRef(new Set<string>());
+  // Per project, in send order: which chat is waiting. Replies carry only project_id
+  // (the contract has no chat_id yet), so the oldest waiting chat gets the next reply.
+  const waiting = useRef(new Map<string, { chatId: string; timer: Timer }[]>());
+  const chatsRequested = useRef(new Set<string>());
+  const chatsRef = useRef<Record<string, Chat[]>>({});
   const takenNames = useRef(new Set<string>());
 
   useEffect(() => {
@@ -33,75 +42,115 @@ export default function App() {
       .then((list) => {
         list.forEach((p) => takenNames.current.add(p.name));
         setProjects(list);
-        setSelectedId((current) => current ?? list[0]?.id ?? null);
       })
       .catch((error) => console.error("Could not load projects", error));
   }, []);
 
   useEffect(() => {
-    const timers = replyTimers.current;
-    return () => timers.forEach((list) => list.forEach(clearTimeout));
+    const all = waiting.current;
+    return () => all.forEach((list) => list.forEach((w) => clearTimeout(w.timer)));
   }, []);
 
-  /** Adds messages to their project, skipping ids already shown. */
-  const addMessages = (incoming: ChatMessage[], position: "append" | "prepend" = "append") => {
+  const setChats = (projectId: string, update: (chats: Chat[]) => Chat[]) => {
+    const next = update(chatsRef.current[projectId] ?? []);
+    chatsRef.current = { ...chatsRef.current, [projectId]: next };
+    setChatsByProject(chatsRef.current);
+  };
+
+  /** Adds messages to a chat, skipping ids already shown. Returns how many were new. */
+  const addMessages = (chatId: string, incoming: ChatMessage[], position: "append" | "prepend" = "append") => {
     const fresh = incoming.filter((m) => !seenMessageIds.current.has(m.id));
     fresh.forEach((m) => seenMessageIds.current.add(m.id));
     if (!fresh.length) return 0;
-    setMessagesByProject((all) => {
-      const next = { ...all };
-      for (const m of fresh) {
-        const list = next[m.project_id] ?? [];
-        next[m.project_id] = position === "append" ? [...list, m] : [m, ...list];
-      }
-      return next;
+    setMessagesByChat((all) => {
+      const list = all[chatId] ?? [];
+      return { ...all, [chatId]: position === "append" ? [...list, ...fresh] : [...fresh, ...list] };
     });
     return fresh.length;
   };
 
-  const changePending = (projectId: string, delta: number) =>
-    setPendingCount((all) => ({ ...all, [projectId]: Math.max(0, (all[projectId] ?? 0) + delta) }));
+  /** Loads a project's chats (and their saved messages) the first time it is opened. */
+  const ensureChats = (projectId: string) => {
+    if (chatsRequested.current.has(projectId)) return;
+    chatsRequested.current.add(projectId);
+    listChats(projectId)
+      .then(({ chats, messages }) => {
+        setChats(projectId, (local) => {
+          // Chats created before the saved ones arrived go after them, renumbered.
+          const extra = local.filter((c) => !chats.some((x) => x.id === c.id));
+          return [...chats, ...extra.map((c, i) => ({ ...c, title: `Chat ${chats.length + i + 1}` }))];
+        });
+        for (const [chatId, history] of Object.entries(messages)) addMessages(chatId, history, "prepend");
+      })
+      .catch((error) => {
+        chatsRequested.current.delete(projectId); // retry next time it is opened
+        console.error("Could not load chats", error);
+      });
+  };
 
-  const startWaiting = (projectId: string) => {
+  const changePending = (chatId: string, delta: number) =>
+    setPendingCount((all) => ({ ...all, [chatId]: Math.max(0, (all[chatId] ?? 0) + delta) }));
+
+  const startWaiting = (projectId: string, chatId: string) => {
     const timer = setTimeout(() => {
       stopWaiting(projectId, timer);
-      console.warn(`No reply for project ${projectId} after ${REPLY_TIMEOUT_MS / 1000}s`);
+      console.warn(`No reply in ${chatId} after ${REPLY_TIMEOUT_MS / 1000}s`);
     }, REPLY_TIMEOUT_MS);
-    replyTimers.current.set(projectId, [...(replyTimers.current.get(projectId) ?? []), timer]);
-    changePending(projectId, 1);
+    waiting.current.set(projectId, [...(waiting.current.get(projectId) ?? []), { chatId, timer }]);
+    changePending(chatId, 1);
     return timer;
   };
 
-  /** Stops one wait: a specific timer, or the oldest one when a reply arrives. */
-  const stopWaiting = (projectId: string, timer?: ReturnType<typeof setTimeout>) => {
-    const timers = replyTimers.current.get(projectId) ?? [];
-    const target = timer ?? timers[0];
-    if (target === undefined || !timers.includes(target)) return;
-    clearTimeout(target);
-    replyTimers.current.set(projectId, timers.filter((t) => t !== target));
-    changePending(projectId, -1);
+  /** Stops one wait (a specific timer, or the oldest when a reply arrives); returns its chat. */
+  const stopWaiting = (projectId: string, timer?: Timer): string | undefined => {
+    const list = waiting.current.get(projectId) ?? [];
+    const entry = timer === undefined ? list[0] : list.find((w) => w.timer === timer);
+    if (!entry) return undefined;
+    clearTimeout(entry.timer);
+    waiting.current.set(projectId, list.filter((w) => w !== entry));
+    changePending(entry.chatId, -1);
+    return entry.chatId;
   };
 
-  // Load each project's saved conversation the first time it is opened.
-  useEffect(() => {
-    if (!selectedId || historyLoaded.current.has(selectedId)) return;
-    const projectId = selectedId;
-    historyLoaded.current.add(projectId);
-    listMessages(projectId)
-      .then((history) => addMessages([...history].reverse(), "prepend"))
-      .catch((error) => {
-        historyLoaded.current.delete(projectId); // retry next time it is opened
-        console.error("Could not load messages", error);
-      });
-  }, [selectedId]);
+  const openProject = (projectId: string) => {
+    ensureChats(projectId);
+    if (view.kind === "project" && view.projectId === projectId) {
+      setExpandedProjectId((current) => (current === projectId ? null : projectId));
+      return;
+    }
+    setView({ kind: "project", projectId });
+    setExpandedProjectId(projectId);
+  };
+
+  const openChat = (projectId: string, chatId: string) => {
+    setView({ kind: "chat", projectId, chatId });
+    setExpandedProjectId(projectId);
+  };
+
+  /** Creates "Chat N" in a project and opens it. */
+  const newChat = (projectId: string): string => {
+    ensureChats(projectId);
+    const chat: Chat = {
+      id: newId(),
+      project_id: projectId,
+      title: `Chat ${(chatsRef.current[projectId]?.length ?? 0) + 1}`,
+      created_at: new Date().toISOString(),
+    };
+    setChats(projectId, (chats) => [...chats, chat]);
+    openChat(projectId, chat.id);
+    return chat.id;
+  };
 
   const handleNewProject = async () => {
     const name = nextProjectName(takenNames.current);
     takenNames.current.add(name); // reserve now so a quick second click gets the next number
     try {
       const project = await createProject(name);
+      chatsRequested.current.add(project.id); // brand new: nothing to load
+      setChats(project.id, () => []);
       setProjects((list) => [project, ...list]);
-      setSelectedId(project.id);
+      setView({ kind: "project", projectId: project.id });
+      setExpandedProjectId(project.id);
     } catch (error) {
       takenNames.current.delete(name);
       console.error("Could not create project", error);
@@ -109,39 +158,66 @@ export default function App() {
   };
 
   const handleSend = (text: string) => {
-    if (!selectedId) return false; // projects not loaded yet: keep the text in the box
+    let projectId: string;
+    let chatId: string;
+    if (view.kind === "chat") {
+      ({ projectId, chatId } = view);
+    } else {
+      // From the start screen: start a new chat in the most recent project.
+      if (!projects.length) return false; // projects not loaded yet: keep the text in the box
+      if (!text) return;
+      projectId = projects[0].id;
+      chatId = newChat(projectId);
+    }
     if (!text) return;
-    const projectId = selectedId;
-    addMessages([{ id: newId(), project_id: projectId, role: "user", content: text, created_at: new Date().toISOString() }]);
-    const timer = startWaiting(projectId);
+    addMessages(chatId, [{ id: newId(), project_id: projectId, role: "user", content: text, created_at: new Date().toISOString() }]);
+    const timer = startWaiting(projectId, chatId);
     sendMessage(projectId, text).catch((error) => {
       console.error("Could not send message", error);
       stopWaiting(projectId, timer);
     });
   };
 
-  useProjectStream(selectedId, (event: ScrapEvent) => {
-    if (event.type === "chat_reply" && addMessages([event.payload])) {
-      stopWaiting(event.project_id);
-    }
+  const streamProjectId = view.kind === "home" ? expandedProjectId : view.projectId;
+  useProjectStream(streamProjectId, (event: ScrapEvent) => {
+    if (event.type !== "chat_reply") return;
+    const projectId = event.project_id;
+    const chatId =
+      (waiting.current.get(projectId)?.[0]?.chatId) ??
+      (view.kind === "chat" && view.projectId === projectId ? view.chatId : undefined) ??
+      chatsRef.current[projectId]?.[0]?.id;
+    if (!chatId) return;
+    if (addMessages(chatId, [event.payload]) && waiting.current.get(projectId)?.length) stopWaiting(projectId);
   });
 
-  const messages = selectedId ? (messagesByProject[selectedId] ?? []) : [];
-  const awaitingReply = selectedId !== null && (pendingCount[selectedId] ?? 0) > 0;
+  const project = view.kind === "home" ? undefined : projects.find((p) => p.id === view.projectId);
+  const messages = view.kind === "chat" ? (messagesByChat[view.chatId] ?? []) : [];
+  const awaitingReply = view.kind === "chat" && (pendingCount[view.chatId] ?? 0) > 0;
+  const composer = <Composer onSend={handleSend} onAttach={() => console.info("[mock] attach dataset")} />;
+
+  let content;
+  if (view.kind === "project" && project) {
+    content = <ProjectView project={project} />;
+  } else if (view.kind === "chat" && (messages.length || awaitingReply)) {
+    content = <ChatView messages={messages} awaitingReply={awaitingReply} />;
+  } else {
+    content = <WelcomeView />;
+  }
 
   return (
     <Workbook>
       <Sidebar
         projects={projects}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
+        chatsByProject={chatsByProject}
+        view={view}
+        expandedProjectId={expandedProjectId}
+        onSelectProject={openProject}
+        onSelectChat={openChat}
+        onNewChat={newChat}
         onNewProject={handleNewProject}
       />
       <SpiralBinding />
-      <Page
-        view={messages.length ? <ChatView messages={messages} awaitingReply={awaitingReply} /> : <WelcomeView />}
-        composer={<Composer onSend={handleSend} onAttach={() => console.info("[mock] attach dataset")} />}
-      />
+      <Page view={content} composer={view.kind === "project" ? undefined : composer} />
     </Workbook>
   );
 }

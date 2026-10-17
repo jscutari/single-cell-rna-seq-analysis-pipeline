@@ -69,8 +69,31 @@ aside.sidebar {
   content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
   background: #5899f2; border-radius: 6px;
 }
-.project-more { display: flex; padding: 2px; color: #183764; }
-.project-more .icon { width: 22px; height: 22px; }
+.project-group { display: flex; flex-direction: column; flex-shrink: 0; }
+.project-chevron { display: flex; color: #7c8ba3; transition: transform .15s ease; }
+.project-chevron .icon { width: 18px; height: 18px; }
+.project-expanded .project-chevron { transform: rotate(180deg); color: #183764; }
+
+/* Chats dropdown under an expanded project */
+.chat-list { list-style: none; margin: 2px 0 6px; padding: 0 0 0 30px; display: flex; flex-direction: column; gap: 2px; }
+.chat-item {
+  position: relative; width: 100%; min-height: 34px; border: 0; border-radius: 6px;
+  background: transparent; text-align: left; display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px 6px 22px; font-size: 15px; color: var(--ink);
+}
+.chat-item::after {
+  /* the dropdown's guide line */
+  content: ""; position: absolute; left: 8px; top: 0; bottom: 0; width: 1px; background: #cfd6df;
+}
+.chat-item:hover:not(.chat-item--selected) { background: rgba(181, 211, 247, .14); }
+.chat-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-item--new { color: #3a68a8; }
+.chat-item--new .icon { width: 16px; height: 16px; }
+.chat-item--selected { background: rgba(181, 211, 247, .29); }
+.chat-item--selected::before {
+  content: ""; position: absolute; left: 7px; top: 5px; bottom: 5px; width: 3px;
+  background: #5899f2; border-radius: 6px; z-index: 1;
+}
 
 /* Footer */
 .sidebar-foot {
@@ -97,7 +120,7 @@ aside.sidebar {
   .sidebar { padding: 16px 8px; }
   .brand { justify-content: center; margin-left: 0; margin-right: 0; }
   .brand-logo { width: 42px; }
-  .brand-copy, .sidebar-heading, .project-meta, .project-more, .foot-link span { display: none; }
+  .brand-copy, .sidebar-heading, .project-meta, .project-chevron, .chat-list, .foot-link span { display: none; }
   .new-project { width: 53px; height: 49px; margin: 12px auto 20px; padding: 0; justify-content: center; }
   .new-project span { display: none; }
   .projects { align-items: center; margin: 0; }

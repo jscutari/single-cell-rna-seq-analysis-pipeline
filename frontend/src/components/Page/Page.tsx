@@ -3,10 +3,10 @@ import { DotsIcon, ShareIcon } from "../icons/Icons";
 import "./Page.css";
 
 interface PageProps {
-  /** The active view (welcome card now; Chat, Trace, Findings… later). */
+  /** The active view: welcome card, chat, or project page. */
   view: ReactNode;
-  /** Pinned to the bottom of the page across all views. */
-  composer: ReactNode;
+  /** Chat box pinned to the bottom; omitted on the project page. */
+  composer?: ReactNode;
 }
 
 export function Page({ view, composer }: PageProps) {

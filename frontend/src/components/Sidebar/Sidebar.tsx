@@ -1,17 +1,31 @@
 import logo from "../../assets/scrap-logo.png";
-import type { ProjectSummary } from "../../types/schemas";
 import { relativeTime } from "../../lib/relativeTime";
-import { DotsIcon, FolderIcon, GearIcon, HelpIcon, PlusIcon } from "../icons/Icons";
+import type { ProjectSummary } from "../../types/schemas";
+import type { Chat, View } from "../../types/ui";
+import { ChevronDownIcon, FolderIcon, GearIcon, HelpIcon, PlusIcon } from "../icons/Icons";
 import "./Sidebar.css";
 
 interface SidebarProps {
   projects: ProjectSummary[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
+  chatsByProject: Record<string, Chat[]>;
+  view: View;
+  expandedProjectId: string | null;
+  onSelectProject: (projectId: string) => void;
+  onSelectChat: (projectId: string, chatId: string) => void;
+  onNewChat: (projectId: string) => void;
   onNewProject: () => void;
 }
 
-export function Sidebar({ projects, selectedId, onSelect, onNewProject }: SidebarProps) {
+export function Sidebar({
+  projects,
+  chatsByProject,
+  view,
+  expandedProjectId,
+  onSelectProject,
+  onSelectChat,
+  onNewChat,
+  onNewProject,
+}: SidebarProps) {
   return (
     <aside className="sidebar" aria-label="Projects navigation">
       <header className="brand">
@@ -28,14 +42,45 @@ export function Sidebar({ projects, selectedId, onSelect, onNewProject }: Sideba
 
       <h2 className="sidebar-heading">Recent Projects</h2>
       <nav className="projects" aria-label="Recent projects">
-        {projects.map((project) => (
-          <ProjectItem
-            key={project.id}
-            project={project}
-            selected={project.id === selectedId}
-            onSelect={() => onSelect(project.id)}
-          />
-        ))}
+        {projects.map((project) => {
+          const expanded = project.id === expandedProjectId;
+          const chats = chatsByProject[project.id] ?? [];
+          return (
+            <div className="project-group" key={project.id}>
+              <ProjectItem
+                project={project}
+                selected={view.kind === "project" && view.projectId === project.id}
+                expanded={expanded}
+                onSelect={() => onSelectProject(project.id)}
+              />
+              {expanded && (
+                <ul className="chat-list" aria-label={`${project.name} chats`}>
+                  <li>
+                    <button className="chat-item chat-item--new" type="button" onClick={() => onNewChat(project.id)}>
+                      <PlusIcon />
+                      <span>New chat</span>
+                    </button>
+                  </li>
+                  {chats.map((chat) => {
+                    const active = view.kind === "chat" && view.chatId === chat.id;
+                    return (
+                      <li key={chat.id}>
+                        <button
+                          className={active ? "chat-item chat-item--selected" : "chat-item"}
+                          type="button"
+                          aria-current={active ? "page" : undefined}
+                          onClick={() => onSelectChat(project.id, chat.id)}
+                        >
+                          <span className="chat-title">{chat.title}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       <footer className="sidebar-foot">
@@ -55,17 +100,21 @@ export function Sidebar({ projects, selectedId, onSelect, onNewProject }: Sideba
 function ProjectItem({
   project,
   selected,
+  expanded,
   onSelect,
 }: {
   project: ProjectSummary;
   selected: boolean;
+  expanded: boolean;
   onSelect: () => void;
 }) {
+  const classes = ["project", selected && "project-selected", expanded && "project-expanded"].filter(Boolean).join(" ");
   return (
     <button
-      className={selected ? "project project-selected" : "project"}
+      className={classes}
       type="button"
       aria-current={selected ? "page" : undefined}
+      aria-expanded={expanded}
       title={project.name}
       onClick={onSelect}
     >
@@ -74,11 +123,9 @@ function ProjectItem({
         <span className="project-name">{project.name}</span>
         <span className="project-time">{relativeTime(project.created_at)}</span>
       </span>
-      {selected && (
-        <span className="project-more" aria-hidden="true">
-          <DotsIcon />
-        </span>
-      )}
+      <span className="project-chevron" aria-hidden="true">
+        <ChevronDownIcon />
+      </span>
     </button>
   );
 }

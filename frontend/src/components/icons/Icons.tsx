@@ -71,3 +71,9 @@ export const DotsIcon = (p: IconProps) => (
     <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
   </Svg>
 );
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+);
