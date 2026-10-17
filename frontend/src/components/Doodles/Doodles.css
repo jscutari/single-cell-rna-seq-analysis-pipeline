@@ -1,0 +1,42 @@
+/* Hand-drawn scientific sketches in the page margins (decorative). */
+.doodle {
+  position: absolute; pointer-events: none; opacity: .66; z-index: 1;
+  transform-origin: 50% 50%;
+}
+.doodle text {
+  font-family: var(--notes-hand); font-style: normal; font-weight: 400;
+  letter-spacing: .25px; fill: #8390a7; font-size: 16px;
+}
+.doodle .ink {
+  stroke: #8898b0; fill: none; stroke-width: 1.45;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.doodle .pink { stroke: #efcbd0; stroke-width: 2.8; opacity: .78; fill: none; stroke-linecap: round; }
+
+.doodle--rna { left: 6.6%; top: 14.3%; width: 241px; height: 215px; transform: rotate(-1.1deg); }
+.doodle--heat { left: 5.5%; top: 48%; width: 235px; height: 175px; transform: rotate(.8deg); }
+.doodle--volcano { right: 3.2%; top: 13%; width: 254px; height: 240px; transform: rotate(1deg); overflow: visible; }
+.doodle--pathway { right: 4%; bottom: 18%; width: 225px; height: 144px; transform: rotate(-2deg); }
+
+.pink-tab {
+  position: absolute; top: 13%; right: -6px; width: 25px; height: 75px; z-index: 2;
+  background: #efd3d590; transform: rotate(1deg);
+}
+
+@media (max-height: 760px) {
+  .doodle--heat { top: 52%; }
+  .doodle--pathway { bottom: 16%; }
+}
+@media (max-width: 1050px) {
+  .doodle { opacity: .48; }
+  .doodle--rna { left: 6%; width: 170px; }
+  .doodle--heat { left: 3%; width: 170px; }
+  .doodle--volcano { right: 1%; width: 190px; }
+  .doodle--pathway { right: 0; width: 180px; }
+}
+@media (max-width: 740px) {
+  .doodle { opacity: .22; }
+  .doodle--rna, .doodle--heat { display: none; }
+  .doodle--volcano { right: -80px; }
+  .doodle--pathway { right: -70px; }
+}

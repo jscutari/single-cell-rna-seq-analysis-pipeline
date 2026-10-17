@@ -1,0 +1,30 @@
+/* Design tokens: merged final values from frontend/Reference/SCRAP_Lab_Notebook_Refined.html.
+   Typography follows the reference image (Shantell Sans, bundled locally). */
+@import "@fontsource/shantell-sans/latin-400.css";
+@import "@fontsource/shantell-sans/latin-500.css";
+@import "@fontsource/shantell-sans/latin-700.css";
+
+:root {
+  --paper: #f7f6f0;
+  --paper-raised: #fbfaf6;
+  --paper-side: #f8f7f2;
+  --ink: #183763;
+  --ink-soft: #8290aa;
+  --blue: #6699e2;
+  --blue-mid: #91b9ec;
+  --blue-pale: #e4eefb;
+  --outline: #d8d9d4;
+  --rose: #edbcc0;
+  --dots: rgba(82, 91, 105, .17);
+  --sidebar-width: clamp(274px, 22.4vw, 323px);
+  --hand: "Shantell Sans", "Noteworthy", "Bradley Hand", "Segoe Print", "Chalkboard SE", "Comic Neue", cursive;
+  --notes-hand: "Shantell Sans", "Bradley Hand", "Noteworthy", "Segoe Print", "Comic Neue", cursive;
+  --scale-font: 15px;
+}
+
+@media (max-width: 1050px) {
+  :root { --sidebar-width: 264px; }
+}
+@media (max-width: 740px) {
+  :root { --sidebar-width: 73px; }
+}

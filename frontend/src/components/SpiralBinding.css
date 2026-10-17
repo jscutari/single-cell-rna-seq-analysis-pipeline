@@ -1,0 +1,22 @@
+/* Spirals sit over the seam between the sidebar and the page. */
+.binding {
+  position: absolute; left: calc(var(--sidebar-width) - 8px); top: 0; bottom: 0;
+  width: 33px; z-index: 8; pointer-events: none; overflow: hidden; opacity: .78;
+}
+.binding-loop {
+  position: absolute; left: -9px; width: 32px; height: 16px; border-radius: 50%;
+  border: 4px solid rgba(128, 125, 115, .46);
+  border-left-color: rgba(116, 113, 102, .25);
+  border-top-color: rgba(119, 116, 106, .46);
+  border-bottom-color: rgba(124, 119, 110, .43);
+  background: transparent; transform: rotate(-8deg);
+  box-shadow: 1px 1px 1.4px rgba(96, 92, 86, .12);
+}
+.binding-loop::before {
+  content: ""; position: absolute; left: 8px; top: -1px; width: 11px; height: 2px;
+  background: #faf9f3; opacity: .23; border-radius: 50%;
+}
+@media (max-width: 740px) {
+  .binding { width: 29px; }
+  .binding-loop { left: -14px; }
+}

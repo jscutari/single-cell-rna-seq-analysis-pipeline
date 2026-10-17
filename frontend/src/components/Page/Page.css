@@ -1,0 +1,31 @@
+.page {
+  flex: 1; min-width: 0; position: relative; overflow: hidden;
+  background-color: #f8f7f2;
+  background-image: radial-gradient(var(--dots) .65px, transparent .9px);
+  background-size: 21px 21px;
+  background-position: 12px 7px;
+}
+.page::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 35px; pointer-events: none;
+  background: linear-gradient(90deg, rgba(128, 120, 108, .10), transparent);
+}
+
+.topbar {
+  height: 65px; position: relative; z-index: 5;
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 17px 24px 0 36px;
+}
+.top-actions { display: flex; gap: 10px; margin-top: -4px; }
+.round-action {
+  width: 39px; height: 39px; display: grid; place-items: center; border-radius: 50%;
+  background: #e8eaf0e8; border: 1px solid #d4d6db; box-shadow: 0 2px 3px #7e787023;
+}
+.round-action:hover { background: #e1e5ee; }
+.round-action .icon { width: 20px; height: 20px; }
+
+/* Area between the topbar and the composer where the active view renders. */
+.page-view { position: absolute; inset: 0; }
+
+@media (max-width: 740px) {
+  .topbar { padding-left: 29px; }
+}
