@@ -14,6 +14,9 @@ from shared.schemas import Brief, CodeCell, Finding
 
 Status = Literal["pass", "warn", "fail"]
 MIN_DONORS_PER_GROUP = 3
+ALPHA = 0.05
+# Checks the critic cannot override: a FAIL here means the finding is rejected.
+BLOCKING = {"significance", "replicates"}
 _MARK = "__SCRAP_DESIGN__"
 
 
@@ -74,6 +77,13 @@ def run_checks(cells: list[CodeCell], finding: Finding, design: dict) -> list[Ch
                          "A p_adj is claimed but no correction (padj / multipletests) appears in the code."))
     else:
         out.append(Check("multiple_testing", "fail", "No adjusted p-value reported."))
+
+    # 2b. Significance. A correctly reported null result is still not a finding.
+    if finding.p_adj is None or finding.p_adj >= ALPHA:
+        out.append(Check("significance", "fail",
+                         f"Adjusted p = {finding.p_adj} is not below {ALPHA}; this cannot be approved as a finding."))
+    else:
+        out.append(Check("significance", "pass", f"Adjusted p = {finding.p_adj:.3g} < {ALPHA}."))
 
     # 3. Effect size.
     if finding.effect_size is None:

@@ -166,7 +166,8 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis) -> Finding | None:
         history: list[str] = []  # every critic round, so the rigor benchmark can count revisions
         for revision in range(MAX_REVISIONS + 1):
             finding = Finding(hypothesis_id=h.id, **draft.model_dump(exclude={"figure_cell"}))
-            report = checks.format_report(checks.run_checks(cells, finding, design))
+            results = checks.run_checks(cells, finding, design)
+            report = checks.format_report(results)
             review = await _critique(ctx, h, cells, draft, report)
             if review.verdict != "revise" or revision == MAX_REVISIONS:
                 break
@@ -182,6 +183,10 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis) -> Finding | None:
         # An unresolved revise counts as a reject: the critic did not sign off.
         finding.critic_verdict = CriticVerdict.approve if review.verdict == "approve" else CriticVerdict.reject
         final = f"Final: {review.verdict}. " + " ".join(review.issues) + (f" Fix requested: {review.fix}" if review.fix else "")
+        blocked = [c for c in results if c.name in checks.BLOCKING and c.status == "fail"]
+        if blocked:  # hard rules beat the critic's judgment
+            finding.critic_verdict = CriticVerdict.reject
+            final += " Overridden to reject by automated checks: " + " ".join(c.detail for c in blocked)
         finding.critic_notes = "\n".join(history + [final.strip()])
         figs = {c.index: c.figure_paths for c in cells if c.figure_paths}
         pick = figs.get(draft.figure_cell) or (list(figs.values())[-1] if figs else [])
