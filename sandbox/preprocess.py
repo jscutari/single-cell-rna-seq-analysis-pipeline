@@ -15,6 +15,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import scanpy as sc
 import scipy.sparse as sp
 
@@ -79,7 +80,7 @@ def summarize(adata: sc.AnnData, gene_id_format: str) -> dict:
         info = {"dtype": str(s.dtype), "n_unique": int(s.nunique())}
         if info["n_unique"] <= MAX_LEVELS:
             info["counts"] = {str(k): int(v) for k, v in s.value_counts().items()}
-        elif np.issubdtype(s.dtype, np.number):
+        elif pd.api.types.is_numeric_dtype(s):
             info["range"] = [float(s.min()), float(s.max())]
         columns[col] = info
     return {
