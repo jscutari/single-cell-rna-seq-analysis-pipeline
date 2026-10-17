@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agents import checks, prompting
 from agents.llm import chat
@@ -42,7 +42,7 @@ class RunContext:
 class PlannedHypothesis(BaseModel):
     title: str
     rationale: str
-    plan_steps: list[str]
+    plan_steps: list[str] = Field(min_length=2, max_length=4)  # vLLM enforces this as minItems/maxItems
 
 
 class Plan(BaseModel):
@@ -161,12 +161,14 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis) -> Finding | None:
         _set_status(ctx, h, HypothesisStatus.critiquing)
         design = checks.parse_design(await km.run_cell(h.id, checks.design_check_code(ctx.brief)))
         draft = await _write_finding(ctx, h, cells, notes)
+        history: list[str] = []  # every critic round, so the rigor benchmark can count revisions
         for revision in range(MAX_REVISIONS + 1):
             finding = Finding(hypothesis_id=h.id, **draft.model_dump(exclude={"figure_cell"}))
             report = checks.format_report(checks.run_checks(cells, finding, design))
             review = await _critique(ctx, h, cells, draft, report)
             if review.verdict != "revise" or revision == MAX_REVISIONS:
                 break
+            history.append(f"Round {revision + 1}: revise. " + " ".join(review.issues) + f" Fix requested: {review.fix}")
             step = f"Statistics critic requested: {review.fix}"
             cell = await _code_step(ctx, h, step, cells)
             if cell.status == CellStatus.ok:
@@ -177,7 +179,8 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis) -> Finding | None:
 
         # An unresolved revise counts as a reject: the critic did not sign off.
         finding.critic_verdict = CriticVerdict.approve if review.verdict == "approve" else CriticVerdict.reject
-        finding.critic_notes = "\n".join(review.issues + ([f"Requested fix: {review.fix}"] if review.fix else []))
+        final = f"Final: {review.verdict}. " + " ".join(review.issues) + (f" Fix requested: {review.fix}" if review.fix else "")
+        finding.critic_notes = "\n".join(history + [final.strip()])
         figs = {c.index: c.figure_paths for c in cells if c.figure_paths}
         pick = figs.get(draft.figure_cell) or (list(figs.values())[-1] if figs else [])
         finding.figure_path = pick[0] if pick else None
