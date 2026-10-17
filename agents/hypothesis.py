@@ -149,8 +149,12 @@ async def _critique(ctx: RunContext, h: Hypothesis, cells: list[CodeCell], draft
     return Review.model_validate_json(call.output)
 
 
-async def run_hypothesis(ctx: RunContext, h: Hypothesis) -> Finding | None:
-    """Run one hypothesis end to end. Emits status, cell, llm_call and finding events."""
+async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) -> Finding | None:
+    """Run one hypothesis end to end. Emits status, cell, llm_call and finding events.
+
+    critic=False skips checks and critique and approves whatever the finding writer
+    claims; it exists only for the rigor benchmark.
+    """
     await km.start_kernel(h.id, ctx.project_id, ctx.project_dir)
     try:
         cells, notes = [], []
@@ -163,8 +167,14 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis) -> Finding | None:
             notes.append(await _read(ctx, h, step, cell))
 
         _set_status(ctx, h, HypothesisStatus.critiquing)
-        design = checks.parse_design(await km.run_cell(h.id, checks.design_check_code(ctx.brief)))
         draft = await _write_finding(ctx, h, cells, notes)
+        if not critic:
+            finding = Finding(hypothesis_id=h.id, critic_verdict=CriticVerdict.approve,
+                              critic_notes="Critic disabled (benchmark).", **draft.model_dump(exclude={"figure_cell"}))
+            emit(Event(type=EventType.finding, project_id=ctx.project_id, payload=finding))
+            _set_status(ctx, h, HypothesisStatus.approved)
+            return finding
+        design = checks.parse_design(await km.run_cell(h.id, checks.design_check_code(ctx.brief)))
         history: list[str] = []  # every critic round, so the rigor benchmark can count revisions
         for revision in range(MAX_REVISIONS + 1):
             finding = Finding(hypothesis_id=h.id, **draft.model_dump(exclude={"figure_cell"}))
