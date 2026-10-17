@@ -104,9 +104,11 @@ async def plan_hypotheses(ctx: RunContext, n: int = 3, background: str = "",
 
 async def _code_step(ctx: RunContext, h: Hypothesis, step: str, done: list[CodeCell]) -> CodeCell:
     """Coder writes a cell for `step`; on error it sees the traceback and retries."""
+    # Stable text first, so each step's prompt starts with the previous step's prompt
+    # verbatim and vLLM can reuse its cached blocks. What changes goes last.
     history = "\n\n".join(_show_cell(c) for c in done) or "(no cells yet)"
-    base = (f"Hypothesis: {h.title}\nPlan:\n{_plan_text(h)}\n\nCurrent step: {step}\n\n"
-            f"Previous cells:\n{history}")
+    base = (f"Hypothesis: {h.title}\nPlan:\n{_plan_text(h)}\n\nPrevious cells:\n{history}\n\n"
+            f"Current step: {step}")
     user, parent = base, None
     for _ in range(MAX_FIX_ATTEMPTS + 1):
         _set_status(ctx, h, HypothesisStatus.coding)
