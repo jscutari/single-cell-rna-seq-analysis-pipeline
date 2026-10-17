@@ -25,7 +25,7 @@ import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from agents import intake, literature, prompting, reporter
+from agents import intake, literature, prompting, reporter, results
 from agents.hypothesis import RunContext, plan_hypotheses, run_hypothesis
 from sandbox import kernel_manager as km
 from shared.events import Event, EventType, emit
@@ -48,6 +48,8 @@ class _Run:
     hypotheses: list[Hypothesis] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
     background: str = ""
+    sources: list[str] = field(default_factory=list)  # source ids the literature agent searched
+    report: str | None = None
     prefix: str = ""  # shared prompt prefix, set once the brief is final
     tasks: set[asyncio.Task] = field(default_factory=set)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -86,6 +88,7 @@ async def stop_run(project_id: str) -> None:
         task.cancel()
     await asyncio.gather(*run.tasks, return_exceptions=True)
     await asyncio.gather(*(km.stop_kernel(h.id) for h in run.hypotheses))
+    _save(run)
     _stage_done(run, "stopped", "Run stopped by the user.")
 
 
@@ -94,6 +97,7 @@ async def stop_run(project_id: str) -> None:
 async def _begin(run: _Run) -> None:
     run.stage = "preprocess"
     run.summary = await _ensure_processed(run.project_dir)
+    _save(run)
     _stage_done(run, "preprocess", f"{run.summary['n_cells']} cells x {run.summary['n_genes']} genes ready.")
     run.brief = Brief(project_id=run.project_id)
     run.stage = "intake"
@@ -110,6 +114,7 @@ async def _intake_turn(run: _Run) -> None:
         run.brief = Brief(project_id=run.project_id, online_search=run.brief.online_search,
                           **result.brief.model_dump())
         emit(Event(type=EventType.brief_updated, project_id=run.project_id, payload=run.brief))
+        _save(run)
         issues = intake.problems(run.brief, run.summary)
         _say(run, result.reply)
         if result.ready and not issues:
@@ -129,15 +134,24 @@ async def _analyze(run: _Run) -> None:
     except Exception:
         log.exception("Literature background failed; planning without it")
         background, searched = "", []
-    run.background = background
+    run.background, run.sources = background, searched
     if background:
+        (run.project_dir / "background.md").write_text(background)
+        _save(run)
         _stage_done(run, "literature", f"Background from {len(searched)} sources:\n{background}")
     hypotheses = await plan_hypotheses(ctx, N_HYPOTHESES, background, past=run.hypotheses)
     run.hypotheses += hypotheses
+    _save(run)
     _stage_done(run, "planning", "Testing: " + "; ".join(h.title for h in hypotheses))
 
-    results = await asyncio.gather(*(run_hypothesis(ctx, h) for h in hypotheses), return_exceptions=True)
-    for h, r in zip(hypotheses, results):
+    async def one(h: Hypothesis) -> Finding | None:
+        try:
+            return await run_hypothesis(ctx, h)
+        finally:  # refresh the project page as each hypothesis finishes
+            _save(run)
+
+    outcomes = await asyncio.gather(*(one(h) for h in hypotheses), return_exceptions=True)
+    for h, r in zip(hypotheses, outcomes):
         if isinstance(r, Finding):
             run.findings.append(r)
         elif isinstance(r, BaseException):
@@ -147,7 +161,8 @@ async def _analyze(run: _Run) -> None:
 
     text = await reporter.report(run.project_id, run.prefix, run.background, run.hypotheses, run.findings)
     (run.project_dir / "report.md").write_text(text)
-    run.stage = "done"
+    run.report, run.stage = text, "done"
+    _save(run)
     _say(run, text)
     _stage_done(run, "report", text)
 
@@ -163,6 +178,15 @@ async def _answer(run: _Run, text: str) -> None:
 
 
 # --- helpers ---
+
+def _save(run: _Run) -> None:
+    """Refresh project_state.json for the app. Best-effort: never fails the run."""
+    try:
+        results.write_state(run.project_dir, run.project_id, run.stage, run.brief, run.summary,
+                            run.background, run.sources, run.hypotheses, run.report)
+    except Exception:
+        log.exception("Could not write project_state.json for %s", run.project_id)
+
 
 def _say(run: _Run, text: str) -> None:
     msg = ChatMessage(project_id=run.project_id, role=Role.assistant, content=text)
@@ -214,9 +238,9 @@ async def _ensure_processed(project_dir: Path) -> dict:
             out, _ = await proc.communicate()
             if proc.returncode != 0:
                 raise RuntimeError(f"Preprocessing failed:\n{out.decode()[-3000:]}")
-        for name in ("processed.h5ad", "dataset_summary.json", "umap_overview.png"):
+        for name in ("processed.h5ad", "dataset_summary.json", "umap_overview.png", "umap_points.json"):
             dest = project_dir / name
-            if not dest.exists():
+            if not dest.exists() and (cache / name).exists():
                 os.link(cache / name, dest)  # hard link: no copy, and it resolves inside containers
     return json.loads(summary_path.read_text())
 

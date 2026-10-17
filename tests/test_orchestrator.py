@@ -123,6 +123,35 @@ async def test_full_run(env):
     assert analysis.payload["summary"] == "3 hypotheses tested, 3 findings approved."
 
 
+    state = json.loads((env.project / "project_state.json").read_text())
+    assert state["stage"] == "done" and state["report"] == "# Report\n3 findings"
+    assert state["background"] == "Background [wilk2020 p.2]." and state["sources_searched"] == ["wilk2020"]
+    assert [e["hypothesis"]["title"] for e in state["hypotheses"]] == ["H0", "H1", "H2"]
+    assert (env.project / "background.md").read_text() == "Background [wilk2020 p.2]."
+    assert {f["path"] for f in state["files"]} >= {"report.md", "background.md"}
+
+
+async def test_project_state_is_written_from_the_first_stage(env):
+    env.intake_turns = [turn(False, "What are your goals?")]
+    await orch.start_run("p1")
+    await wait_for(env.events, lambda e: e.type == "chat_reply")
+    state = json.loads((env.project / "project_state.json").read_text())
+    assert state["stage"] == "intake" and state["brief"]["condition_column"] == "disease"
+    assert state["dataset"]["n_cells"] == 1000
+
+
+async def test_state_write_failure_never_breaks_the_run(env, monkeypatch):
+    def broken(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr(orch.results, "write_state", broken)
+    env.intake_turns = [turn(False), turn(True)]
+    await orch.start_run("p1")
+    await wait_for(env.events, lambda e: e.type == "chat_reply")
+    await orch.handle_user_message("p1", "go")
+    await wait_for(env.events, stage("report"))
+    assert orch._runs["p1"].stage == "done"
+
+
 async def test_start_run_is_idempotent(env):
     env.intake_turns = [turn(False)]
     await orch.start_run("p1")

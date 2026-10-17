@@ -5,6 +5,7 @@ so the error-prone parts (pseudobulk, DESeq2, donor-level tests) live here.
 Every helper prints the numbers it computed, so agents can reason from text.
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -15,6 +16,20 @@ from scipy import stats
 from statsmodels.stats.multitest import multipletests
 
 GENESETS_DIR = Path(os.environ.get("GENESETS_DIR", "/opt/genesets"))
+# Result tables are saved here (the hypothesis folder is mounted at /work), so the
+# app can chart the exact numbers the statistics were computed on.
+TABLES_DIR = Path(os.environ.get("SCRAP_TABLES_DIR", "/work/tables"))
+
+
+def _save_table(kind: str, df: pd.DataFrame, meta: dict) -> None:
+    """Write tables/<kind>_NN.csv plus a .json sidecar. Never fails the analysis."""
+    try:
+        TABLES_DIR.mkdir(parents=True, exist_ok=True)
+        n = len(list(TABLES_DIR.glob(f"{kind}_*.csv"))) + 1
+        df.to_csv(TABLES_DIR / f"{kind}_{n:02d}.csv")
+        (TABLES_DIR / f"{kind}_{n:02d}.json").write_text(json.dumps(meta, default=str))
+    except OSError:
+        pass
 
 __all__ = ["pseudobulk", "deseq", "donor_scores", "compare_groups", "load_geneset",
            "list_genesets", "multipletests"]
@@ -79,6 +94,8 @@ def deseq(counts, meta, case, control, min_total_count=10, n_cpus=4):
     ds.summary()
     res = ds.results_df.sort_values("padj")
     sig = res[res["padj"] < 0.05]
+    _save_table("de", res[["baseMean", "log2FoldChange", "pvalue", "padj"]],
+                {"case": case, "control": control, "n_case": int(n.get(case, 0)), "n_control": int(n.get(control, 0))})
     print(f"{len(sig)} genes with padj < 0.05 ({(sig['log2FoldChange'] > 0).sum()} up, "
           f"{(sig['log2FoldChange'] < 0).sum()} down in {case})")
     return res
@@ -100,6 +117,7 @@ def donor_scores(adata, genes, donor_col, condition_col, celltype_col=None, cell
           .groupby("donor").agg(condition=("condition", "first"), n_cells=("score", "size"), score=("score", "mean")))
     df = df[df["n_cells"] >= min_cells]
     print(df.sort_values(["condition", "score"]).to_string(float_format=lambda v: f"{v:.4f}"))
+    _save_table("scores", df, {"n_genes": len(present), "celltype": celltype})
     return df
 
 

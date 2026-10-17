@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from agents import checks, literature, prompting
+from agents import checks, literature, prompting, results
 from agents.llm import chat
 from sandbox import kernel_manager as km
 from shared.events import Event, EventType, emit
@@ -156,13 +156,18 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) ->
     claims; it exists only for the rigor benchmark.
     """
     await km.start_kernel(h.id, ctx.project_id, ctx.project_dir)
+    cells, notes, labels = [], [], []  # labels[i] is the step that cells[i] carried out
+    finding: Finding | None = None
     try:
-        cells, notes = [], []
         for step in h.plan_steps:
             cell = await _code_step(ctx, h, step, cells)
             if cell.status != CellStatus.ok:
+                labels.append(step)
+                cells.append(cell)
+                notes.append("This step failed after every retry.")
                 _set_status(ctx, h, HypothesisStatus.failed)
                 return None
+            labels.append(step)
             cells.append(cell)
             notes.append(await _read(ctx, h, step, cell))
 
@@ -171,6 +176,7 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) ->
         if not critic:
             finding = Finding(hypothesis_id=h.id, critic_verdict=CriticVerdict.approve,
                               critic_notes="Critic disabled (benchmark).", **draft.model_dump(exclude={"figure_cell"}))
+            _attach_files(ctx, h, finding, cells, draft.figure_cell)
             emit(Event(type=EventType.finding, project_id=ctx.project_id, payload=finding))
             _set_status(ctx, h, HypothesisStatus.approved)
             return finding
@@ -178,8 +184,8 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) ->
         history: list[str] = []  # every critic round, so the rigor benchmark can count revisions
         for revision in range(MAX_REVISIONS + 1):
             finding = Finding(hypothesis_id=h.id, **draft.model_dump(exclude={"figure_cell"}))
-            results = checks.run_checks(cells, finding, design)
-            report = checks.format_report(results)
+            check_results = checks.run_checks(cells, finding, design)
+            report = checks.format_report(check_results)
             review = await _critique(ctx, h, cells, draft, report)
             if review.verdict != "revise" or revision == MAX_REVISIONS:
                 break
@@ -187,6 +193,7 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) ->
             step = f"Statistics critic requested: {review.fix}"
             cell = await _code_step(ctx, h, step, cells)
             if cell.status == CellStatus.ok:
+                labels.append(step)
                 cells.append(cell)
                 notes.append(await _read(ctx, h, step, cell))
                 _set_status(ctx, h, HypothesisStatus.critiquing)
@@ -195,15 +202,12 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) ->
         # An unresolved revise counts as a reject: the critic did not sign off.
         finding.critic_verdict = CriticVerdict.approve if review.verdict == "approve" else CriticVerdict.reject
         final = f"Final: {review.verdict}. " + " ".join(review.issues) + (f" Fix requested: {review.fix}" if review.fix else "")
-        blocked = [c for c in results if c.name in checks.BLOCKING and c.status == "fail"]
+        blocked = [c for c in check_results if c.name in checks.BLOCKING and c.status == "fail"]
         if blocked:  # hard rules beat the critic's judgment
             finding.critic_verdict = CriticVerdict.reject
             final += " Overridden to reject by automated checks: " + " ".join(c.detail for c in blocked)
         finding.critic_notes = "\n".join(history + [final.strip()])
-        figs = {c.index: c.figure_paths for c in cells if c.figure_paths}
-        pick = figs.get(draft.figure_cell) or (list(figs.values())[-1] if figs else [])
-        finding.figure_path = pick[0] if pick else None
-        finding.notebook_path = str(ctx.project_dir / "hypotheses" / h.id / f"{h.id}.ipynb")
+        _attach_files(ctx, h, finding, cells, draft.figure_cell)
         if finding.critic_verdict == CriticVerdict.approve:
             try:  # novelty is a bonus; never lose a finding over it
                 await literature.novelty(ctx.project_id, ctx.project_dir, ctx.prefix, finding,
@@ -219,6 +223,19 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) ->
         raise
     finally:
         await km.stop_kernel(h.id)
+        try:  # the record for the project page; never let saving it break a run
+            results.save_analysis(ctx.project_dir, h, list(zip(labels, cells, notes)), finding)
+        except Exception:
+            log.exception("Could not save analysis.json for %s", h.id)
+
+
+def _attach_files(ctx: RunContext, h: Hypothesis, finding: Finding, cells: list[CodeCell],
+                  figure_cell: int | None) -> None:
+    """Point the finding at its notebook and best figure (the cell it cites, else the last plot)."""
+    figs = {c.index: c.figure_paths for c in cells if c.figure_paths}
+    pick = figs.get(figure_cell) or (list(figs.values())[-1] if figs else [])
+    finding.figure_path = pick[0] if pick else None
+    finding.notebook_path = str(ctx.project_dir / "hypotheses" / h.id / f"{h.id}.ipynb")
 
 
 async def _demo() -> None:

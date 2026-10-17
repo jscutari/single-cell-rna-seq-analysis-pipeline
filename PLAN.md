@@ -153,6 +153,37 @@ Agents call `emit(Event(type=..., project_id=..., payload=...))`. `payload` acce
 
 ---
 
+### Results on disk (for the project page)
+
+Events carry live progress. For everything a project has produced so far, the orchestrator keeps one file per project up to date: **`<project_dir>/project_state.json`**. It is rewritten after each stage and as each hypothesis finishes, and it survives a backend restart. **`agents/results.py` documents the exact fields and is the source of truth.**
+
+| Key | What it is |
+| --- | --- |
+| `stage`, `brief`, `background`, `sources_searched`, `report` | Where the run is, and its text outputs |
+| `dataset` | `n_cells`, `n_genes`, and `chart`: a UMAP coloured by cell type |
+| `hypotheses[]` | Each `Hypothesis`, plus its `analysis`: every step's code, output, figures and **the reader's plain-language interpretation** |
+| `findings[]` | Each `Finding`, with `hypothesis_title`, `chart` (built from the real result tables), and `figure` and `notebook` paths |
+| `files[]` | Every file worth showing, in the frontend's `ProjectFile` shape, with a relative `path` where the frontend has `url` |
+
+Paths are relative to the project folder.
+
+**Charts use data units, not pixels:**
+- `volcano`: `points: [[log2fc, -log10 padj]]`, `labels: [{x, y, text}]`, `threshold`, and axis labels
+- `bar`: `bars: [{label, value, group}]`
+- `umap`: `clusters: [{label, color, points: [[x, y]]}]`, with x and y scaled to 0–1
+
+A finding's `chart` can be `null` when no result table backs it.
+
+**Suggested backend routes:**
+- `GET /projects/{id}/state`: returns the file as is
+- `GET /projects/{id}/files`: `state.files`, with `url = /api/projects/{id}/files/{path}`
+- `GET /projects/{id}/files/{path}`: serves the file; reject any path that resolves outside the project folder
+- `GET /projects/{id}/findings`: builds `FindingCard`s from `state.findings`
+
+Re-read the file after any `finding`, `hypothesis_status` or `stage_done` event.
+
+---
+
 ## 7. Agents (all Lightning, one vLLM server)
 
 | Agent | Reasoning | Input | Output |

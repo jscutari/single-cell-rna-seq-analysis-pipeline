@@ -262,3 +262,53 @@ def test_run_context_load(tmp_path, brief, summary):
     (tmp_path / "dataset_summary.json").write_text(json.dumps(summary))
     ctx = RunContext.load("p1", tmp_path, brief)
     assert ctx.summary["n_cells"] == 1000 and "`disease`" in ctx.prefix
+
+
+# --- analysis.json for the project page ---
+
+def analysis(setup) -> dict:
+    return json.loads((Path(setup.ctx.project_dir) / "hypotheses" / setup.h.id / "analysis.json").read_text())
+
+
+async def test_analysis_record_after_critic_approval(setup):
+    """Regression: a local named `results` once shadowed the results module, so this file was silently lost."""
+    setup.llm.reply("reader", "Monocytes score higher.").reply("finding", draft()).reply("critic", review())
+    await hyp.run_hypothesis(setup.ctx, setup.h)
+    a = analysis(setup)
+    assert [s["step"] for s in a["steps"]] == ["pseudobulk", "test"]
+    assert a["steps"][0]["interpretation"] == "Looks significant."
+    assert a["steps"][1]["interpretation"] == "Monocytes score higher."
+    assert a["finding"]["critic_verdict"] == "approve" and a["hypothesis"]["status"] == "approved"
+    assert not any("__SCRAP_DESIGN__" in s["cell"]["source"] for s in a["steps"])
+
+
+async def test_analysis_record_includes_critic_revision_step(setup):
+    setup.llm.reply("finding", draft(), draft())
+    setup.llm.reply("critic", review("revise", ["x"], "print cohens_d"), review("approve"))
+    await hyp.run_hypothesis(setup.ctx, setup.h)
+    assert analysis(setup)["steps"][-1]["step"] == "Statistics critic requested: print cohens_d"
+
+
+async def test_analysis_record_for_a_failed_step(setup):
+    setup.kernel.outcomes = [CellStatus.error] * (hyp.MAX_FIX_ATTEMPTS + 1)
+    await hyp.run_hypothesis(setup.ctx, setup.h)
+    a = analysis(setup)
+    assert a["finding"] is None and a["hypothesis"]["status"] == "failed"
+    assert a["steps"][0]["cell"]["status"] == "error" and "failed after every retry" in a["steps"][0]["interpretation"]
+
+
+async def test_analysis_record_survives_a_crash(setup):
+    def vllm_down(messages, kwargs):
+        raise RuntimeError("vLLM down")
+    setup.llm.script["finding"] = [vllm_down]
+    with pytest.raises(RuntimeError):
+        await hyp.run_hypothesis(setup.ctx, setup.h)
+    a = analysis(setup)
+    assert len(a["steps"]) == 2 and a["finding"] is None
+
+
+async def test_critic_off_findings_get_files_too(setup):
+    setup.kernel.figures = {1: ["/f/cell1.png"]}
+    setup.llm.reply("finding", draft())
+    f = await hyp.run_hypothesis(setup.ctx, setup.h, critic=False)
+    assert f.figure_path == "/f/cell1.png" and f.notebook_path.endswith(f"{setup.h.id}.ipynb")

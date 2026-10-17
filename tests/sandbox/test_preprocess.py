@@ -77,3 +77,13 @@ def test_rejects_data_without_integer_counts(tmp_path):
 def test_symbol_indexed_data_is_left_alone():
     a = ad.AnnData(X=sp.csr_matrix(np.ones((2, 2))), var=pd.DataFrame(index=["ISG15", "CD14"]))
     assert pp.use_gene_symbols(a) == "symbol" and list(a.var_names) == ["ISG15", "CD14"]
+
+
+def test_umap_points_for_charts(tmp_path):
+    src = cellxgene_like(tmp_path / "in.h5ad")
+    pp.main(str(src), str(tmp_path / "out"))
+    pts = json.loads((tmp_path / "out" / "umap_points.json").read_text())
+    assert len(pts["x"]) == len(pts["y"]) == N_CELLS - 5  # fewer cells than UMAP_POINTS: keep all
+    assert 0 <= min(pts["x"]) and max(pts["x"]) <= 1
+    assert set(pts["labels"]) >= {"donor_id", "disease", "cell.type.coarse"}
+    assert "nCount_RNA" not in pts["labels"] and len(pts["labels"]["disease"]) == len(pts["x"])

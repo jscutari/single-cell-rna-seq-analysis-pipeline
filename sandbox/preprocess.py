@@ -24,6 +24,7 @@ import scipy.sparse as sp
 LEAKY_COLUMNS = ["IFN1", "HLA1"]
 # How many distinct values a column may have and still be listed in full.
 MAX_LEVELS = 40
+UMAP_POINTS = 3000  # cells kept for the app's UMAP chart
 
 
 def load_counts(path: Path) -> sc.AnnData:
@@ -95,6 +96,16 @@ def summarize(adata: sc.AnnData, gene_id_format: str) -> dict:
     }
 
 
+def umap_points(adata: sc.AnnData, n: int = UMAP_POINTS, seed: int = 0) -> dict:
+    """A random subset of UMAP coordinates (scaled to 0-1) with every categorical label, for charts."""
+    idx = np.random.default_rng(seed).choice(adata.n_obs, size=min(n, adata.n_obs), replace=False)
+    xy = adata.obsm["X_umap"][idx]
+    xy = (xy - xy.min(axis=0)) / np.maximum(xy.max(axis=0) - xy.min(axis=0), 1e-9)
+    labels = {c: adata.obs[c].astype(str).values[idx].tolist() for c in adata.obs.columns
+              if 2 <= adata.obs[c].nunique() <= MAX_LEVELS and not c.endswith("_ontology_term_id")}
+    return {"x": np.round(xy[:, 0], 4).tolist(), "y": np.round(xy[:, 1], 4).tolist(), "labels": labels}
+
+
 def main(in_path: str, out_dir: str) -> None:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -103,6 +114,7 @@ def main(in_path: str, out_dir: str) -> None:
     adata = preprocess(adata)
     adata.write_h5ad(out / "processed.h5ad", compression="gzip")
     (out / "dataset_summary.json").write_text(json.dumps(summarize(adata, gene_id_format), indent=2))
+    (out / "umap_points.json").write_text(json.dumps(umap_points(adata)))
 
     sc.pl.umap(adata, color=[c for c in ["cell.type.coarse", "disease", "donor_id"] if c in adata.obs],
                ncols=3, show=False, save=False)

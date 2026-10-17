@@ -117,3 +117,29 @@ def test_baked_in_gene_sets_exist():
     assert len(st.load_geneset("MSigDB_Hallmark_2020", "Interferon Alpha Response")) > 50
     assert {p.stem for p in st.GENESETS_DIR.glob("*.gmt")} == {
         "MSigDB_Hallmark_2020", "GO_Biological_Process_2023", "Reactome_2022", "KEGG_2021_Human"}
+
+
+# --- result tables for the project page ---
+
+def test_helpers_save_numbered_tables_with_sidecars(adata, tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(st, "TABLES_DIR", tmp_path / "tables")
+    counts, meta = st.pseudobulk(adata, "donor_id", "disease", "cell.type", "Mono")
+    st.deseq(counts, meta, "COVID-19", "normal", n_cpus=1)
+    st.donor_scores(adata, ["GENE0"], "donor_id", "disease", "cell.type", "Mono")
+    st.donor_scores(adata, ["GENE1"], "donor_id", "disease", "cell.type", "NK")
+    names = sorted(p.name for p in (tmp_path / "tables").iterdir())
+    assert names == ["de_01.csv", "de_01.json", "scores_01.csv", "scores_01.json", "scores_02.csv", "scores_02.json"]
+    de = pd.read_csv(tmp_path / "tables" / "de_01.csv", index_col=0)
+    assert list(de.columns) == ["baseMean", "log2FoldChange", "pvalue", "padj"] and de.index[0] == "GENE0"
+    assert json.loads((tmp_path / "tables" / "de_01.json").read_text()) == {
+        "case": "COVID-19", "control": "normal", "n_case": 3, "n_control": 3}
+    assert json.loads((tmp_path / "tables" / "scores_02.json").read_text())["celltype"] == "NK"
+
+
+def test_unwritable_tables_dir_never_breaks_the_analysis(adata, tmp_path, monkeypatch):
+    blocker = tmp_path / "file"
+    blocker.write_text("not a directory")
+    monkeypatch.setattr(st, "TABLES_DIR", blocker / "tables")
+    df = st.donor_scores(adata, ["GENE0"], "donor_id", "disease", "cell.type", "Mono")
+    assert len(df) == 6
