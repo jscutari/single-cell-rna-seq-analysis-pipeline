@@ -3,7 +3,7 @@
 import { mockProjects } from "../data/mockProjects";
 import type { ChatMessage, ProjectSummary } from "../types/schemas";
 
-const USE_MOCK = true;
+export const USE_MOCK = true;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
