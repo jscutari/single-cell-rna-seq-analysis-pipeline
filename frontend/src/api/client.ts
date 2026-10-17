@@ -23,7 +23,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
 
 export async function createProject(name: string): Promise<ProjectSummary> {
   if (USE_MOCK) {
-    const project = { id: crypto.randomUUID(), name, updated_at: new Date().toISOString() };
+    const project = { id: crypto.randomUUID(), name, created_at: new Date().toISOString() };
     mockStore = [project, ...mockStore];
     return project;
   }

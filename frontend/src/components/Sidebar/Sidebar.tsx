@@ -72,7 +72,7 @@ function ProjectItem({
       <FolderIcon />
       <span className="project-meta">
         <span className="project-name">{project.name}</span>
-        <span className="project-time">{relativeTime(project.updated_at)}</span>
+        <span className="project-time">{relativeTime(project.created_at)}</span>
       </span>
       {selected && (
         <span className="project-more" aria-hidden="true">
