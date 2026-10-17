@@ -1,16 +1,5 @@
 import { useEffect } from "react";
-import type { EventType, ScrapEvent } from "../types/events";
-
-const EVENT_TYPES: EventType[] = [
-  "llm_call",
-  "brief_updated",
-  "hypothesis_status",
-  "cell_started",
-  "cell_finished",
-  "finding",
-  "chat_reply",
-  "stage_done",
-];
+import { EVENT_TYPES, type ScrapEvent } from "../types/events";
 
 const STREAM_ENABLED = false;
 
