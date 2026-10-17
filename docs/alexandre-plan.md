@@ -3,12 +3,12 @@
 ## Progress
 - [x] 0. Shared schemas + events
 - [x] 1. Brev box + `setup_brev.sh` (H100 SXM on Nebius: `consistent-brown-moth`)
-- [ ] 2. `serve_vllm.sh` *(script written; run it once weights finish downloading)*
-- [ ] 3. `agents/llm.py` *(written; test once vLLM is up)*
+- [x] 2. `serve_vllm.sh` (DSpark: 62% draft tokens accepted)
+- [x] 3. `agents/llm.py` (10 concurrent calls: 6.9 s wall vs 55.7 s sequential)
 - [x] 4. Sandbox Dockerfile
 - [x] 5. `preprocess.py` (44,649 cells → `~/workspace/data/covid_pbmc/`)
-- [ ] 6. `kernel_manager.py`
-- [ ] 7. Prompts + `checks.py`
+- [x] 6. `kernel_manager.py` + `scrap_tools.py` helpers (reproduce ISG up / HLA-II down)
+- [ ] 7. Prompts + `checks.py` *(checks.py done; prompts next)*
 - [ ] 8. Single-hypothesis loop (first finding)
 - [ ] 9. Full orchestrator
 - [ ] 10. Intake agent
