@@ -67,3 +67,29 @@ def app(settings, orchestrator):
 def client(app):
     with TestClient(app) as c:  # runs startup/shutdown
         yield c
+
+
+@pytest.fixture
+def live_server(settings, orchestrator):
+    """The app on a real uvicorn server in a thread (for streaming over HTTP)."""
+    import socket
+    import threading
+    import time
+
+    import uvicorn
+
+    app = create_app(settings, orchestrator=orchestrator)
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="on"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(500):
+        if server.started:
+            break
+        time.sleep(0.01)
+    assert server.started, "server did not start"
+    yield app, f"http://127.0.0.1:{port}"
+    server.should_exit = True
+    thread.join(timeout=5)

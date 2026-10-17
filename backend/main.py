@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from backend.config import Settings
 from backend.hub import EventHub
 from backend.projects import ProjectRegistry
+from backend import sse
 from backend.routes import projects, state
 from backend.store import InMemoryStore
 
@@ -42,6 +43,7 @@ def create_app(settings: Settings | None = None, orchestrator=None, store: InMem
     app.state.hub = EventHub(app.state.store, settings.subscriber_queue_size)
     app.include_router(projects.router)
     app.include_router(state.router)
+    app.include_router(sse.router)
 
     @app.get("/api/health")
     async def health() -> dict:
