@@ -10,6 +10,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from backend.config import Settings
+from backend.projects import ProjectRegistry
+from backend.routes import projects
 from backend.store import InMemoryStore
 
 log = logging.getLogger("scrap.backend")
@@ -22,12 +24,16 @@ def create_app(settings: Settings | None = None, orchestrator=None, store: InMem
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         settings.data_root.mkdir(parents=True, exist_ok=True)
+        app.state.projects.load()
+        app.state.projects.ensure_preset_project()
         yield
 
     app = FastAPI(title="SCRAP backend", lifespan=lifespan)
     app.state.settings = settings
     app.state.store = store or InMemoryStore()
     app.state.orchestrator = orchestrator
+    app.state.projects = ProjectRegistry(settings.data_root, settings.preset)
+    app.include_router(projects.router)
 
     @app.get("/api/health")
     async def health() -> dict:

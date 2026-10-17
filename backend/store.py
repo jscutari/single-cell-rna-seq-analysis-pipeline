@@ -133,5 +133,8 @@ class InMemoryStore:
     def llm_call(self, call_id: str) -> dict | None:
         return self._llm_calls.get(call_id)
 
+    def known_projects(self) -> set[str]:
+        return set(self._views)
+
     def running_projects(self) -> list[str]:
         return [pid for pid, v in self._views.items() if v.status == "running"]
