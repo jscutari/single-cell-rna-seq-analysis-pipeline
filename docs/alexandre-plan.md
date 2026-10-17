@@ -200,5 +200,15 @@ Run `start_run` on the COVID project from the partner's UI. Then confirm that:
 
 This is PLAN.md §15, the definition of done.
 
-## Order vs. timeline
-Steps 0–3 → Sat afternoon · 4–8 → Sat night · 9–12 → Sun morning · 13 → Sun midday · then code freeze.
+## Order vs. timeline (submission due Sun 11:00)
+| When | Steps | Notes |
+| --- | --- | --- |
+| Sat 16:15–19:00 | 1–3, and 4 in parallel | Build the sandbox image while the weights download |
+| Sat 19:00–23:00 | 5–6 | Data preprocessed, kernels running |
+| Sat 23:00–03:00 | 7–8 | **Critical milestone: first critic-approved finding** |
+| Sun 03:00–07:00 | 9, 10, 11a–b | Parallel hypotheses, intake, background summary |
+| Sun 07:00–09:00 | 11c, 12, slim 13 | Benchmarks on COVID only: single-agent baseline, critic off, serving ablation |
+| Sun 09:00 | **Code freeze** | |
+| Sun 09:00–11:00 | — | Backup demo video, README, bounty write-ups, submit |
+
+**Cut first if behind:** the CellBench 10-paper subset, 11d (Europe PMC), Q&A chat, and mid-run steering. These are Tier 2/3 or extra benchmarks; the demo works without them.
