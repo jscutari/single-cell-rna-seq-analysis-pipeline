@@ -1,6 +1,5 @@
 """Backend fixtures: a temporary DATA_ROOT, a fake orchestrator and a test client."""
 
-import asyncio
 from pathlib import Path
 
 import pytest
@@ -68,12 +67,3 @@ def app(settings, orchestrator):
 def client(app):
     with TestClient(app) as c:  # runs startup/shutdown
         yield c
-
-
-async def until(predicate, timeout: float = 2.0):
-    """Wait for a condition set by background work."""
-    for _ in range(int(timeout / 0.01)):
-        if predicate():
-            return
-        await asyncio.sleep(0.01)
-    raise AssertionError("condition not met in time")
