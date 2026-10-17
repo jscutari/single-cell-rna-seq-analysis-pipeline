@@ -1,4 +1,5 @@
 // Mirrors shared/events.py, which is the source of truth (owned with Alexandre).
+// After pulling changes to shared/, run `npm run check:contract` to find drift.
 import type { Brief, ChatMessage, CodeCell, Finding, Hypothesis, LLMCall } from "./schemas";
 
 /** Same order as the EventType enum in shared/events.py. */

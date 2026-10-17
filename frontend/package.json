@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview",
-    "screenshot": "node scripts/screenshot.ts"
+    "screenshot": "node scripts/screenshot.ts",
+    "check:contract": "python3 scripts/check_contract.py"
   },
   "dependencies": {
     "@fontsource/shantell-sans": "^5.3.0",

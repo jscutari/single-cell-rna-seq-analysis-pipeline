@@ -1,4 +1,5 @@
 // Mirrors shared/schemas.py, which is the source of truth (owned with Alexandre).
+// After pulling changes to shared/, run `npm run check:contract` to find drift.
 // Same names and order as the Python file. Datetimes arrive as ISO strings
 // because payloads are serialized with model_dump(mode="json").
 
