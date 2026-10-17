@@ -3,7 +3,8 @@ import { ArrowUpIcon, PaperclipIcon } from "../icons/Icons";
 import "./Composer.css";
 
 interface ComposerProps {
-  onSend: (text: string) => void;
+  /** Return false to keep the text in the box (e.g. the message could not be sent yet). */
+  onSend: (text: string) => boolean | void;
   onAttach: () => void;
 }
 
@@ -13,7 +14,7 @@ export function Composer({ onSend, onAttach }: ComposerProps) {
   // Shell: the button is always clickable; sending is a stub until the chat backend exists.
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
-    onSend(text.trim());
+    if (onSend(text.trim()) === false) return;
     setText("");
   };
 

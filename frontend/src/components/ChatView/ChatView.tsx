@@ -14,7 +14,7 @@ export function ChatView({ messages, awaitingReply }: ChatViewProps) {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, awaitingReply]);
+  }, [messages, awaitingReply]);
 
   return (
     <div className="chat-scroll">
