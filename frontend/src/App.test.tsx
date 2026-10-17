@@ -656,3 +656,15 @@ describe("resizable side panel", () => {
     expect(screen.queryByRole("separator", { name: "Resize panel" })).toBeNull();
   });
 });
+
+describe("name", () => {
+  it("the start screen says what SCRAP stands for, with the initials picked out", async () => {
+    await renderApp();
+    const caption = document.querySelector(".welcome-acronym")!;
+    expect(caption.textContent).toBe("Single-cell RNA-seq Analysis Pipeline");
+    expect(Array.from(caption.querySelectorAll("b")).map((b) => b.textContent).join("")).toBe("ScRAP");
+    expect(screen.getByRole("button", { name: "SCRAP home" }).getAttribute("title")).toContain(
+      "Single-cell RNA-seq Analysis Pipeline",
+    );
+  });
+});

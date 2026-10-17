@@ -39,7 +39,7 @@ export function Sidebar({
   return (
     <aside className={collapsed ? "sidebar sidebar--collapsed" : "sidebar"} aria-label="Projects navigation">
       <header className="brand">
-        <button className="brand-home" type="button" aria-label="SCRAP home" title="Start screen" onClick={onHome}>
+        <button className="brand-home" type="button" aria-label="SCRAP home" title="SCRAP · Single-cell RNA-seq Analysis Pipeline" onClick={onHome}>
           <img className="brand-logo" src={logo} alt="" />
           <span className="brand-copy">
             <strong className="brand-name">SCRAP</strong>

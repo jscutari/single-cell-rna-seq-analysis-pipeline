@@ -48,6 +48,12 @@
   background: #f0c4cb; border-radius: 70% 10% 80% 20%;
   transform: rotate(-2.5deg); opacity: .86;
 }
+/* What the name stands for: a small note under the title, initials picked out in highlighter */
+.welcome-acronym { font-size: 14px; letter-spacing: .3px; color: #8290aa; margin: 1px auto 11px; white-space: nowrap; }
+.welcome-acronym b {
+  font-weight: 700; color: var(--ink); padding: 0 .5px;
+  background: linear-gradient(transparent 64%, rgba(240, 196, 203, .8) 64%, rgba(240, 196, 203, .8) 90%, transparent 90%);
+}
 .welcome-subtitle { font-size: 17px; font-weight: 500; margin: 4px auto 5px; white-space: nowrap; }
 .underlined { position: relative; white-space: nowrap; }
 .underlined::after {
@@ -62,6 +68,7 @@
   .logo-tile { width: 85px; height: 85px; margin-bottom: 14px; }
   .logo-tile img { width: 62px; height: 68px; }
   .welcome-title { font-size: 34px; margin-bottom: 8px; }
+  .welcome-acronym { font-size: 13px; margin: 3px auto 7px; }
   .welcome-description { margin-top: 7px; }
 }
 @media (max-width: 1050px) {
@@ -76,5 +83,6 @@
   .logo-tile img { height: 65px; width: 65px; }
   .welcome-title { font-size: clamp(26px, 5vw, 33px); }
   .welcome-subtitle { white-space: normal; line-height: 1.4; font-size: 14px; }
+  .welcome-acronym { font-size: 12px; white-space: normal; }
   .welcome-description { font-size: 13px; }
 }
