@@ -1,0 +1,6 @@
+/* Hand-drawn chart style: pencil-blue ink, pastel fills, handwriting labels. */
+.chart { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--notes-hand); fill: #6f7f99; font-size: 11px; }
+.chart .ink { stroke: #8898b0; fill: none; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.chart .guide { stroke: #a9b5c6; stroke-width: 1; stroke-dasharray: 4 5; fill: none; }
+.chart .label-strong { fill: var(--ink); font-size: 11.5px; }

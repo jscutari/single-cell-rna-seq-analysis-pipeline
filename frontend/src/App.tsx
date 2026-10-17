@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createProject, listChats, listProjects, sendMessage } from "./api/client";
+import { createProject, listChats, listFiles, listFindings, listProjects, sendMessage } from "./api/client";
 import { useProjectStream } from "./api/useProjectStream";
 import { newId } from "./lib/ids";
 import { ChatView } from "./components/ChatView/ChatView";
@@ -12,7 +12,7 @@ import { WelcomeView } from "./components/WelcomeCard/WelcomeView";
 import { Workbook } from "./components/Workbook";
 import type { ScrapEvent } from "./types/events";
 import type { ChatMessage, ProjectSummary } from "./types/schemas";
-import type { Chat, View } from "./types/ui";
+import type { Chat, FindingCard, ProjectFile, View } from "./types/ui";
 
 /** Give up waiting for a reply after this long, so the typing dots don't spin forever. */
 const REPLY_TIMEOUT_MS = 60_000;
@@ -25,6 +25,8 @@ export default function App() {
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [chatsByProject, setChatsByProject] = useState<Record<string, Chat[]>>({});
   const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
+  const [filesByProject, setFilesByProject] = useState<Record<string, ProjectFile[]>>({});
+  const [findingsByProject, setFindingsByProject] = useState<Record<string, FindingCard[]>>({});
   /** Messages sent per chat that are still waiting for a reply. */
   const [pendingCount, setPendingCount] = useState<Record<string, number>>({});
 
@@ -34,6 +36,7 @@ export default function App() {
   // (the contract has no chat_id yet), so the oldest waiting chat gets the next reply.
   const waiting = useRef(new Map<string, { chatId: string; timer: Timer }[]>());
   const chatsRequested = useRef(new Set<string>());
+  const projectDataRequested = useRef(new Set<string>());
   const chatsRef = useRef<Record<string, Chat[]>>({});
   const takenNames = useRef(new Set<string>());
 
@@ -88,6 +91,21 @@ export default function App() {
       });
   };
 
+  /** Loads a project's files and findings the first time its page is opened. */
+  const ensureProjectData = (projectId: string) => {
+    if (projectDataRequested.current.has(projectId)) return;
+    projectDataRequested.current.add(projectId);
+    Promise.all([listFiles(projectId), listFindings(projectId)])
+      .then(([files, findings]) => {
+        setFilesByProject((all) => ({ ...all, [projectId]: [...files, ...(all[projectId] ?? [])] }));
+        setFindingsByProject((all) => ({ ...all, [projectId]: findings }));
+      })
+      .catch((error) => {
+        projectDataRequested.current.delete(projectId);
+        console.error("Could not load project files and findings", error);
+      });
+  };
+
   const changePending = (chatId: string, delta: number) =>
     setPendingCount((all) => ({ ...all, [chatId]: Math.max(0, (all[chatId] ?? 0) + delta) }));
 
@@ -114,6 +132,7 @@ export default function App() {
 
   const openProject = (projectId: string) => {
     ensureChats(projectId);
+    ensureProjectData(projectId);
     if (view.kind === "project" && view.projectId === projectId) {
       setExpandedProjectId((current) => (current === projectId ? null : projectId));
       return;
@@ -147,6 +166,7 @@ export default function App() {
     try {
       const project = await createProject(name);
       chatsRequested.current.add(project.id); // brand new: nothing to load
+      projectDataRequested.current.add(project.id);
       setChats(project.id, () => []);
       setProjects((list) => [project, ...list]);
       setView({ kind: "project", projectId: project.id });
@@ -197,7 +217,9 @@ export default function App() {
 
   let content;
   if (view.kind === "project" && project) {
-    content = <ProjectView project={project} />;
+    content = (
+      <ProjectView project={project} files={filesByProject[project.id] ?? []} findings={findingsByProject[project.id] ?? []} />
+    );
   } else if (view.kind === "chat" && (messages.length || awaitingReply)) {
     content = <ChatView messages={messages} awaitingReply={awaitingReply} />;
   } else {

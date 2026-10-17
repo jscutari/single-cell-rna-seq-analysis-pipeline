@@ -9,12 +9,15 @@ const api = vi.hoisted(() => ({
   createProject: vi.fn(),
   listChats: vi.fn(),
   listMessages: vi.fn(),
+  listFiles: vi.fn(),
+  listFindings: vi.fn(),
   sendMessage: vi.fn(),
 }));
 vi.mock("./api/client", () => ({ USE_MOCK: true, ...api }));
 
 import App from "./App";
 import { publishMockEvent } from "./api/mockEvents";
+import { mockFilesFor, mockFindingsFor } from "./data/mockWorkspace";
 
 const NOW = new Date().toISOString();
 const PROJECTS: ProjectSummary[] = [
@@ -84,6 +87,8 @@ beforeEach(() => {
   api.listProjects.mockResolvedValue(PROJECTS);
   api.createProject.mockImplementation(async (name: string) => ({ id: `new-${name}`, name, created_at: NOW }));
   api.listChats.mockImplementation(async (projectId: string) => seededChats(projectId));
+  api.listFiles.mockImplementation(async (projectId: string) => mockFilesFor(projectId));
+  api.listFindings.mockImplementation(async (projectId: string) => mockFindingsFor(projectId));
   api.sendMessage.mockResolvedValue(undefined);
 });
 afterEach(() => {
@@ -256,5 +261,45 @@ describe("projects", () => {
     expect(names).toContain(opened);
     expect(chatTitles(opened)).toEqual(["New chat"]);
     expect(api.listChats).not.toHaveBeenCalledWith(`new-${opened}`);
+  });
+});
+
+describe("project page", () => {
+  it("lists the project's files and key findings with charts, and has no chat box", async () => {
+    await renderApp();
+    await click(projectButton("Project 1"));
+    const files = document.querySelectorAll(".file-row");
+    expect(Array.from(files).map((f) => f.querySelector(".file-name")!.textContent)).toEqual([
+      "processed.h5ad",
+      "wilk_2020_covid_pbmc.pdf",
+      "de_results.csv",
+      "umap_clusters.svg",
+      "analysis_notes.txt",
+    ]);
+    const findings = screen.getAllByRole("article");
+    expect(findings).toHaveLength(3);
+    expect(within(findings[0]).getByRole("img", { name: /Volcano plot/ })).toBeTruthy();
+    expect(within(findings[1]).getByRole("img", { name: /Bar chart/ })).toBeTruthy();
+    expect(within(findings[2]).getByRole("img", { name: /UMAP/ })).toBeTruthy();
+    expect(within(findings[0]).getByText("p_adj 2.1e−8")).toBeTruthy();
+    expect(within(findings[0]).getByText("Critic approved")).toBeTruthy();
+    expect(input()).toBeNull();
+  });
+
+  it("loads a project's files and findings only once", async () => {
+    await renderApp();
+    await click(projectButton("Project 1"));
+    await click(projectButton("Other"));
+    await click(projectButton("Project 1"));
+    expect(api.listFiles.mock.calls.filter(([id]) => id === "p1")).toHaveLength(1);
+    expect(api.listFindings.mock.calls.filter(([id]) => id === "p1")).toHaveLength(1);
+  });
+
+  it("shows empty states for a new project", async () => {
+    await renderApp();
+    await click(screen.getByRole("button", { name: /New Project/ }));
+    expect(screen.getByText("Upload a dataset or paper to get started.")).toBeTruthy();
+    expect(screen.getByText(/No findings yet/)).toBeTruthy();
+    expect(api.listFiles).not.toHaveBeenCalled();
   });
 });

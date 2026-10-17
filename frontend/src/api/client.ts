@@ -9,10 +9,10 @@
 //   POST /api/projects/{id}/messages {content} -> 204 (reply arrives as a chat_reply event)
 //   GET  /api/projects/{id}/events       -> SSE stream of shared Event JSON
 import { mockProjects } from "../data/mockProjects";
-import { mockChatsFor } from "../data/mockWorkspace";
+import { mockChatsFor, mockFilesFor, mockFindingsFor } from "../data/mockWorkspace";
 import { newId } from "../lib/ids";
 import type { ChatMessage, ProjectSummary } from "../types/schemas";
-import type { Chat } from "../types/ui";
+import type { Chat, FindingCard, ProjectFile } from "../types/ui";
 import { publishMockEvent } from "./mockEvents";
 
 /** Mock data unless started with VITE_USE_MOCK=false. */
@@ -61,6 +61,16 @@ export async function listChats(projectId: string): Promise<{ chats: Chat[]; mes
   const history = await listMessages(projectId);
   const chat: Chat = { id: `${projectId}-chat-1`, project_id: projectId, title: "Chat 1", created_at: history[0]?.created_at ?? new Date().toISOString() };
   return { chats: [chat], messages: { [chat.id]: history } };
+}
+
+// No backend endpoints are agreed for files and findings yet, so the real-backend
+// mode shows none; mock mode shows sample data.
+export async function listFiles(projectId: string): Promise<ProjectFile[]> {
+  return USE_MOCK ? mockFilesFor(projectId) : [];
+}
+
+export async function listFindings(projectId: string): Promise<FindingCard[]> {
+  return USE_MOCK ? mockFindingsFor(projectId) : [];
 }
 
 const MOCK_REPLY = "Trademarked 2026  Jiggle by Kerry";

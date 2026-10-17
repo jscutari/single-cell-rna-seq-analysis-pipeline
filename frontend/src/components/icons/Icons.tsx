@@ -77,3 +77,22 @@ export const ChevronDownIcon = (p: IconProps) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
+
+export const FileIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+    <path d="M14 3v5h5" />
+  </Svg>
+);
+
+export const UploadIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" />
+  </Svg>
+);
+
+export const CloseIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </Svg>
+);
