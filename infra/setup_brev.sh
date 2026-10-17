@@ -14,7 +14,7 @@ HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 
 VLLM_IMAGE=vllm/vllm-openai:v0.27.1
 MODEL=nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
-DRAFT_MODEL=nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DFlash
+DRAFT_MODEL=nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
 
 # Wilk et al. 2020 (GEO GSE150728), annotated .h5ad from CZ CELLxGENE
 COVID_URL=https://datasets.cellxgene.cziscience.com/8d7fad46-2f37-4aa0-ac9d-babbc36efb6f.h5ad
