@@ -44,10 +44,12 @@ import warnings; warnings.filterwarnings("ignore")
 import numpy as np, pandas as pd, scanpy as sc, matplotlib.pyplot as plt
 pd.set_option("display.width", 200); pd.set_option("display.max_columns", 30)
 plt.rcParams["figure.dpi"] = 100
-GENESETS_DIR = "/opt/genesets"
+from scrap_tools import *  # pseudobulk, deseq, donor_scores, compare_groups, load_geneset, ...
 adata = sc.read_h5ad("/data/processed.h5ad")
 print(adata)
 """
+
+TOOLS_DIR = Path(__file__).resolve().parent  # scrap_tools.py is mounted from here
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -111,6 +113,8 @@ async def start_kernel(hypothesis_id: str, project_id: str, project_dir: str | P
         "-v", f"{project_dir.resolve()}:/data:ro",
         "-v", f"{work_dir.resolve()}:/work",
         "-v", f"{conn_dir.resolve()}:/conn",
+        "-v", f"{TOOLS_DIR / 'scrap_tools.py'}:/opt/tools/scrap_tools.py:ro",
+        "-e", "PYTHONPATH=/opt/tools",
         IMAGE, "python", "-m", "ipykernel_launcher", "-f", "/conn/kernel.json",
     )
 
