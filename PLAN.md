@@ -154,7 +154,7 @@ vllm serve --model nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 \
   --kv-cache-dtype fp8 \
   --gpu-memory-utilization 0.85 \
   --enable-prefix-caching
-# then add: DFlash speculative decoding + reasoning parser, per model card
+# then add: DSpark speculative decoding + reasoning parser, per the model card's "1x H100 interactive" recipe
 ```
 
 - Every agent shares a long common prefix (brief + dataset summary), so prefix caching matters.
