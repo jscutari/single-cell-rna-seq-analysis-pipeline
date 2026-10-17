@@ -46,6 +46,7 @@ pd.set_option("display.width", 200); pd.set_option("display.max_columns", 30)
 plt.rcParams["figure.dpi"] = 100
 from scrap_tools import *  # pseudobulk, deseq, donor_scores, compare_groups, load_geneset, ...
 adata = sc.read_h5ad("/data/processed.h5ad")
+_ADATA = adata  # untouched reference for system checks, even if a cell reassigns `adata`
 print(adata)
 """
 
