@@ -86,8 +86,30 @@ def test_llm_call_kept_in_full_but_view_is_trimmed(store):
     assert store.llm_call("missing") is None
 
 
+def test_restored_trimmed_llm_call_is_not_mistaken_for_a_full_one(store):
+    store.append("llm_call", "p1", {"id": "l1", "agent": "critic", "message_count": 4})
+    assert store.llm_call("l1") is None  # the full call must come from the database
+    assert store.view("p1").llm_calls["l1"]["message_count"] == 4
+
+
 def test_summarize_llm_call_handles_missing_messages():
     assert summarize_llm_call({"id": "l1"}) == {"id": "l1", "message_count": 0}
+
+
+def test_summarize_llm_call_is_idempotent():
+    once = summarize_llm_call({"id": "l1", "messages": [{}, {}, {}]})
+    assert summarize_llm_call(once) == once == {"id": "l1", "message_count": 3}
+
+
+def test_restore_keeps_ids_and_rejects_out_of_order():
+    from backend.store import StoredEvent
+
+    store = InMemoryStore()
+    store.restore(StoredEvent(5, "stage_done", "p1", {"stage": "intake", "summary": ""}, "t"))
+    assert store.last_event_id == 5
+    assert store.append("stage_done", "p1", {"stage": "planning", "summary": ""}).id == 6
+    with pytest.raises(ValueError, match="id order"):
+        store.restore(StoredEvent(3, "stage_done", "p1", {}, "t"))
 
 
 @pytest.mark.parametrize(

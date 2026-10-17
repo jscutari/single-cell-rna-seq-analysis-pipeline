@@ -159,7 +159,8 @@ def test_record_a_replayed_run_and_replay_it_again(replay_settings, tmp_path, mo
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
-    threading.Thread(target=server.run, daemon=True).start()
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
     wait(lambda: server.started)
     base = f"http://127.0.0.1:{port}"
     try:
@@ -170,6 +171,7 @@ def test_record_a_replayed_run_and_replay_it_again(replay_settings, tmp_path, mo
         n = recorder.record(base, PRESET_ID, out, timeout=20)
     finally:
         server.should_exit = True
+        thread.join(timeout=10)
     records = load_recording(out)
     assert n == len(records)
     types = [r["type"] for r in records]

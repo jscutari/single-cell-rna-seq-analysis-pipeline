@@ -105,6 +105,18 @@ def test_detach_restores_the_console_sink(capsys):
     assert h.store.last_event_id == 0
 
 
+def test_detach_does_not_remove_a_newer_hubs_sink():
+    old, new = EventHub(InMemoryStore()), EventHub(InMemoryStore())
+    loop = asyncio.new_event_loop()
+    old.attach(loop)
+    new.attach(loop)  # a second app started before the first finished shutting down
+    old.detach()
+    assert events_module._sink == new.ingest
+    new.detach()
+    assert events_module._sink == events_module._print_sink
+    loop.close()
+
+
 def test_ingest_without_a_loop_is_dropped_with_a_warning(caplog):
     h = EventHub(InMemoryStore())
     h.ingest(reply())

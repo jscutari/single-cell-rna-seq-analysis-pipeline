@@ -52,7 +52,7 @@ async def list_llm_calls(project_id: str, request: Request, agent: str | None = 
 async def get_llm_call(project_id: str, call_id: str, request: Request) -> dict:
     """One LLM call in full, including its prompt messages."""
     require_project(request, project_id)
-    call = request.app.state.store.llm_call(call_id)
+    call = await request.app.state.store.fetch_llm_call(call_id)
     if call is None or call.get("project_id") != project_id:
         raise HTTPException(404, "LLM call not found")
     return call

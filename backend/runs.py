@@ -26,6 +26,7 @@ class RunManager:
         self.hub = hub
         self.orchestrator = orchestrator
         self.projects = projects
+        self._delivered: set[str] = set()  # user message ids handed to the orchestrator
 
     @property
     def store(self):
@@ -71,10 +72,20 @@ class RunManager:
         return True
 
     async def send(self, project_id: str, message: dict) -> bool:
-        """Record the user's message and hand it to the orchestrator. False if it was a duplicate."""
+        """Record the user's message, save it, and hand it to the orchestrator.
+
+        False if it was a retry of a message already delivered. A retry of one
+        that was recorded but not delivered (e.g. the save failed) is delivered.
+        """
+        if message["id"] in self._delivered:
+            return False
         must_start = self.check_can_chat(project_id)
-        if self.hub.publish("user_message", project_id, message) is None:
-            return False  # retry of a message we already have
+        self.hub.publish("user_message", project_id, message)  # None for a retry: already recorded
+        try:
+            await self.store.flush()  # a message the user sees as sent must be saved
+        except TimeoutError:
+            raise HTTPException(503, "Couldn't save your message (the database is unavailable). Try again.") from None
+        self._delivered.add(message["id"])
         if must_start:
             await self.start(project_id)
         try:

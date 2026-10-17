@@ -50,9 +50,13 @@ class ProjectView:
 
 
 def summarize_llm_call(call: dict) -> dict:
-    """An LLM call without its (large) prompt messages."""
+    """An LLM call without its (large) prompt messages. Idempotent: an already
+    trimmed call (e.g. restored from the database) keeps its message_count."""
     summary = {k: v for k, v in call.items() if k != "messages"}
-    summary["message_count"] = len(call.get("messages") or [])
+    if "messages" in call:
+        summary["message_count"] = len(call["messages"] or [])
+    else:
+        summary.setdefault("message_count", 0)
     return summary
 
 
@@ -66,6 +70,7 @@ class InMemoryStore:
         self._by_project: dict[str, list[StoredEvent]] = defaultdict(list)
         self._views: dict[str, ProjectView] = defaultdict(ProjectView)
         self._llm_calls: dict[str, dict] = {}  # full calls, by id
+        self._last_id = 0
 
     # --- writes ---
 
@@ -74,11 +79,21 @@ class InMemoryStore:
         view = self._views[project_id]
         if type == USER_MESSAGE and payload["id"] in view.messages:
             return None  # same client id sent twice (a retry): keep the first
-        event = StoredEvent(len(self._events) + 1, type, project_id, payload, created_at or now_iso())
-        self._events.append(event)
-        self._by_project[project_id].append(event)
-        self._apply(view, event)
+        event = StoredEvent(self._last_id + 1, type, project_id, payload, created_at or now_iso())
+        self._add(event, view)
         return event
+
+    def restore(self, event: StoredEvent) -> None:
+        """Re-add an event saved earlier (startup), keeping its id."""
+        if event.id <= self._last_id:
+            raise ValueError(f"events must be restored in id order ({event.id} after {self._last_id})")
+        self._add(event, self._views[event.project_id])
+
+    def _add(self, event: StoredEvent, view: ProjectView) -> None:
+        self._last_id = event.id
+        self._events.append(event)
+        self._by_project[event.project_id].append(event)
+        self._apply(view, event)
 
     def _apply(self, view: ProjectView, event: StoredEvent) -> None:
         p = event.payload
@@ -94,7 +109,8 @@ class InMemoryStore:
             case "finding":
                 view.findings[p["id"]] = p
             case "llm_call":
-                self._llm_calls[p["id"]] = p
+                if "messages" in p:  # a full call; restored events are already trimmed
+                    self._llm_calls[p["id"]] = p
                 view.llm_calls[p["id"]] = summarize_llm_call(p)
             case "stage_done":
                 view.stage = p.get("stage")
@@ -107,7 +123,7 @@ class InMemoryStore:
 
     @property
     def last_event_id(self) -> int:
-        return len(self._events)
+        return self._last_id
 
     def events_after(self, project_id: str, after: int) -> list[StoredEvent]:
         events = self._by_project.get(project_id, [])
@@ -132,6 +148,19 @@ class InMemoryStore:
 
     def llm_call(self, call_id: str) -> dict | None:
         return self._llm_calls.get(call_id)
+
+    async def fetch_llm_call(self, call_id: str) -> dict | None:
+        """The full call; a database-backed store also looks in the database."""
+        return self.llm_call(call_id)
+
+    # Persistence hooks (no-ops here; see backend/pg_store.py).
+    db_status = "memory"
+
+    async def flush(self, timeout: float = 5.0) -> None:
+        return None
+
+    async def close(self) -> None:
+        return None
 
     def known_projects(self) -> set[str]:
         return set(self._views)

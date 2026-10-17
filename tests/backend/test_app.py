@@ -3,8 +3,9 @@
 from backend.config import Settings
 
 
-def test_health(client):
-    assert client.get("/api/health").json() == {"status": "ok", "agents": "fake"}
+def test_health(client, settings):
+    expected_db = "ok" if settings.store == "postgres" else "memory"
+    assert client.get("/api/health").json() == {"status": "ok", "agents": "fake", "db": expected_db}
 
 
 def test_startup_creates_data_root(tmp_path, orchestrator):

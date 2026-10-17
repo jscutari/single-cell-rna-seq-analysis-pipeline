@@ -48,8 +48,13 @@ def data_root(tmp_path: Path) -> Path:
     return root
 
 
-@pytest.fixture
-def settings(data_root: Path) -> Settings:
+@pytest.fixture(params=["memory", pytest.param("postgres", marks=pytest.mark.db)])
+def settings(request, data_root: Path) -> Settings:
+    """Every app-level test runs twice: in-memory store and Postgres (skipped if unreachable)."""
+    if request.param == "postgres":
+        url = request.getfixturevalue("pg_url")
+        return Settings(data_root=data_root, agents="fake", heartbeat_seconds=0.2,
+                        store="postgres", database_url=url, write_interval=0.02, db_connect_timeout=3)
     return Settings(data_root=data_root, agents="fake", heartbeat_seconds=0.2)
 
 

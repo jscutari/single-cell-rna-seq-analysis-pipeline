@@ -28,6 +28,9 @@ def create_app(settings: Settings | None = None, orchestrator=None, store: InMem
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         settings.data_root.mkdir(parents=True, exist_ok=True)
+        if app.state.store is None:
+            app.state.store = await open_store(settings)  # refuses to start if Postgres is unreachable
+        app.state.hub = EventHub(app.state.store, settings.subscriber_queue_size)
         app.state.projects.load()
         app.state.projects.ensure_preset_project()
         if app.state.orchestrator is None:
@@ -38,13 +41,13 @@ def create_app(settings: Settings | None = None, orchestrator=None, store: InMem
             yield
         finally:
             app.state.hub.detach()
+            await app.state.store.close()
 
     app = FastAPI(title="SCRAP backend", lifespan=lifespan)
     app.state.settings = settings
-    app.state.store = store or InMemoryStore()
+    app.state.store = store  # None: opened at startup from settings.store
     app.state.orchestrator = orchestrator
     app.state.projects = ProjectRegistry(settings.data_root, settings.preset)
-    app.state.hub = EventHub(app.state.store, settings.subscriber_queue_size)
     app.include_router(projects.router)
     app.include_router(state.router)
     app.include_router(sse.router)
@@ -53,9 +56,20 @@ def create_app(settings: Settings | None = None, orchestrator=None, store: InMem
 
     @app.get("/api/health")
     async def health() -> dict:
-        return {"status": "ok", "agents": settings.agents}
+        return {"status": "ok", "agents": settings.agents, "db": app.state.store.db_status}
 
     return app
+
+
+async def open_store(settings: Settings) -> InMemoryStore:
+    if settings.store == "memory":
+        log.warning("SCRAP_STORE=memory: nothing is saved; data is lost when the backend restarts")
+        return InMemoryStore()
+    if settings.store == "postgres":
+        from backend.pg_store import PgStore
+
+        return await PgStore.open(settings)
+    raise ValueError(f"Unknown SCRAP_STORE={settings.store!r} (expected 'postgres' or 'memory')")
 
 
 def load_orchestrator(settings: Settings):

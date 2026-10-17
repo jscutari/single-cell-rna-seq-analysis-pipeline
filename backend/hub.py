@@ -41,7 +41,10 @@ class EventHub:
         events_module.set_sink(self.ingest)
 
     def detach(self) -> None:
-        events_module.set_sink(events_module._print_sink)
+        # Only undo our own registration: another app may have attached since
+        # (e.g. one starting while this one shuts down).
+        if events_module._sink == self.ingest:
+            events_module.set_sink(events_module._print_sink)
         self.loop = None
 
     # --- the emit() sink ---
