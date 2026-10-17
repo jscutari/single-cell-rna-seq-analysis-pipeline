@@ -48,6 +48,7 @@ def use_gene_symbols(adata: sc.AnnData) -> str:
         adata.var["ensembl_id"] = adata.var_names
         adata.var_names = adata.var["feature_name"].astype(str)
         adata.var_names_make_unique()
+        adata.var.index.name = None  # else it clashes with the feature_name column on write
         return "ensembl (re-indexed to symbols; original IDs in var['ensembl_id'])"
     return "symbol"
 
