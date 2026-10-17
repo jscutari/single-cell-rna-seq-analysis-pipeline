@@ -101,7 +101,8 @@ def _pdf_chunks(path: Path) -> list[Chunk]:
     title = (doc.metadata or {}).get("title") or path.stem
     chunks = []
     for page_no, page in enumerate(doc, 1):
-        paras = [re.sub(r"\s+", " ", p).strip() for p in page.get_text().split("\n\n")]
+        # Text blocks follow the layout (roughly one per paragraph); block[6] == 0 means text, not image.
+        paras = [re.sub(r"\s+", " ", b[4]).strip() for b in page.get_text("blocks") if b[6] == 0]
         buf = ""
         for p in paras:
             if len(p) < 40:  # headers, page numbers, figure labels

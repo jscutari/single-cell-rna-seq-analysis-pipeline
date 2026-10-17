@@ -16,6 +16,23 @@ dependencies = [
     "sentence-transformers>=5.0",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pandas>=2.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: needs Docker, the scrap-sandbox image and the COVID data (Brev box)",
+    "llm: needs vLLM serving on localhost:8000",
+]
+
 [tool.uv]
 package = false
 # Hackathon rule: open-source libraries must be at least 2 weeks old.
