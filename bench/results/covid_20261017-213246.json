@@ -1,0 +1,154 @@
+{
+  "n_hypotheses": 5,
+  "hypotheses": [
+    "Hallmark interferon-alpha response is upregulated in CD14 monocytes from COVID-19 patients compared to healthy donors",
+    "CD16 monocyte proportion is increased in COVID-19 patients relative to healthy donors",
+    "CD8 effector T cells upregulate exhaustion markers in COVID-19 patients versus healthy donors",
+    "B cell immunoglobulin gene programs are enhanced in COVID-19 patients compared to healthy donors",
+    "Neutrophil inflammatory gene programs are activated in COVID-19 patients relative to healthy donors"
+  ],
+  "rows": {
+    "multi": {
+      "wall_s": 144.0,
+      "llm_calls": 69,
+      "tokens_in": 302228,
+      "tokens_out": 132715,
+      "cells": 37,
+      "cells_ok_pct": 73,
+      "findings": 5,
+      "accepted_significant": 2,
+      "accepted": 2,
+      "rejected_by_critic": 3,
+      "revised_by_critic": 2,
+      "recovered": [
+        "ISG signature up"
+      ],
+      "peak_concurrent_requests": 5,
+      "prefix_cache_hit_pct": 6.5,
+      "spec_decode_accept_pct": 66.6,
+      "gen_tokens_per_s": 921.5,
+      "claims": [
+        {
+          "claim": "Hallmark interferon-alpha response is upregulated in CD14 monocytes from COVID-19 patients compared to healthy donors (mean difference = 0.19, Cohen's d = 1.72)",
+          "p_adj": 0.01433,
+          "effect_size": 1.7212,
+          "verdict": "approve"
+        },
+        {
+          "claim": "CD16 monocyte proportion is significantly lower (mean 0.037 vs 0.286, Cohen's d = \u22122.02) in COVID-19 patients vs healthy donors, opposite to the hypothesis of increase.",
+          "p_adj": 0.0179,
+          "effect_size": -2.018,
+          "verdict": "approve"
+        },
+        {
+          "claim": "CD8eff T cell exhaustion score is higher in COVID-19 patients than healthy donors (mean difference\u202f=\u202f0.097, Cohen\u2019s\u202fd\u202f=\u202f1.14; Welch\u2019s t\u2011test p\u202f=\u202f0.082, based on 6 COVID\u201119 and 5 healthy donors).",
+          "p_adj": null,
+          "effect_size": 1.141,
+          "verdict": "reject"
+        },
+        {
+          "claim": "B-cell activation scores do not differ between COVID-19 and healthy donors (mean difference \u22120.0029, Cohen's d \u22120.0737), refuting the hypothesis of enhancement in COVID-19.",
+          "p_adj": 0.89368,
+          "effect_size": -0.0737,
+          "verdict": "reject"
+        },
+        {
+          "claim": "Neutrophil degranulation gene\u2011program donor\u2011level scores are decreased in COVID\u201119 patients compared to healthy donors (mean difference \u22120.044, Cohen\u2019s\u202fd\u202f=\u202f\u22121.13), but the difference is not statistically significant (Welch\u2019s p\u202f=\u202f0.166).",
+          "p_adj": 0.16605429254277224,
+          "effect_size": -1.1346660323928666,
+          "verdict": "reject"
+        }
+      ]
+    },
+    "no_critic": {
+      "wall_s": 96.0,
+      "llm_calls": 52,
+      "tokens_in": 201082,
+      "tokens_out": 117014,
+      "cells": 31,
+      "cells_ok_pct": 55,
+      "findings": 4,
+      "accepted_significant": 2,
+      "accepted": 4,
+      "rejected_by_critic": 0,
+      "revised_by_critic": 0,
+      "recovered": [
+        "ISG signature up"
+      ],
+      "peak_concurrent_requests": 5,
+      "prefix_cache_hit_pct": 1.1,
+      "spec_decode_accept_pct": 68.5,
+      "gen_tokens_per_s": 1218.3,
+      "claims": [
+        {
+          "claim": "Hallmark Interferon Alpha Response is upregulated in CD14 monocytes from COVID-19 patients compared to healthy donors, with a large effect size (Cohen's d = 1.721) and statistically significant adjusted p-value (FDR = 0.014334).",
+          "p_adj": 0.014334,
+          "effect_size": 1.721,
+          "verdict": "approve"
+        },
+        {
+          "claim": "CD16 monocyte proportion is lower in COVID-19 patients than in healthy donors (mean difference = -0.2411, Cohen's d = -1.77).",
+          "p_adj": 0.01988,
+          "effect_size": -1.774,
+          "verdict": "approve"
+        },
+        {
+          "claim": "COVID-19 patients have a higher B-cell immunoglobulin gene program donor-level score than healthy donors (mean difference = 0.0675, Cohen's d = 0.98), 7 COVID-19 vs 6 healthy donors.",
+          "p_adj": 0.101399,
+          "effect_size": 0.9809,
+          "verdict": "approve"
+        },
+        {
+          "claim": "Neutrophil degranulation gene program scores in neutrophils are lower in COVID-19 patients than healthy donors (mean difference \u22120.04441, Cohen's d = \u22121.135, 4 vs 3 donors), opposite to hypothesis of inflammatory gene program activation.",
+          "p_adj": 0.1661,
+          "effect_size": -1.135,
+          "verdict": "approve"
+        }
+      ]
+    },
+    "baseline": {
+      "wall_s": 84.0,
+      "llm_calls": 17,
+      "tokens_in": 179920,
+      "tokens_out": 11796,
+      "cells": 15,
+      "cells_ok_pct": 93,
+      "findings": 4,
+      "accepted_significant": 0,
+      "accepted": 4,
+      "rejected_by_critic": 0,
+      "revised_by_critic": 0,
+      "recovered": [],
+      "peak_concurrent_requests": 1,
+      "prefix_cache_hit_pct": 59.7,
+      "spec_decode_accept_pct": 67.7,
+      "gen_tokens_per_s": 140.5,
+      "claims": [
+        {
+          "claim": "COVID-19 patients show a consistent interferon-stimulated gene program across all major leukocyte cell types",
+          "p_adj": null,
+          "effect_size": null,
+          "verdict": null
+        },
+        {
+          "claim": "B cells are enriched (cohens_d=1.29) and pDC are depleted (cohens_d=-2.20, p_adj=0.006) in COVID-19 vs normal donors",
+          "p_adj": null,
+          "effect_size": null,
+          "verdict": null
+        },
+        {
+          "claim": "CD14 Monocyte proportion is increased (cohens_d=0.79) and CD8 T cell proportion is decreased (cohens_d=-1.03) in COVID-19",
+          "p_adj": null,
+          "effect_size": null,
+          "verdict": null
+        },
+        {
+          "claim": "Top ISG genes upregulated across cell types include STAT1, IFI44, IFI44L, PARP9, and S100A8",
+          "p_adj": null,
+          "effect_size": null,
+          "verdict": null
+        }
+      ]
+    }
+  }
+}

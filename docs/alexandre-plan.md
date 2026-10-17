@@ -14,7 +14,7 @@
 - [x] 10. Intake agent
 - [ ] 11. Literature (11a–d written and wired in; needs the Wilk PDF to test)
 - [x] 12. Reporter (final report + Q&A)
-- [ ] 13. Benchmarks
+- [ ] 13. Benchmarks *(COVID run 1 done: bench/results/covid_latest.md)*
 
 ## Context
 The repo is only placeholders right now (one comment line per file, committed in `41b107d`). PLAN.md makes Alexandre responsible for `infra/`, `sandbox/`, `agents/` and `bench/`, plus `shared/` jointly with the partner. This plan splits that work into small steps. Each step has one thing to check before moving on, so you can follow along and learn as we build.
