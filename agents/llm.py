@@ -9,6 +9,7 @@ Smoke test (vLLM must be running):  uv run python -m agents.llm
 import asyncio
 import os
 import time
+import weakref
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -20,8 +21,17 @@ from shared.schemas import LLMCall
 VLLM_URL = os.environ.get("VLLM_URL", "http://localhost:8000/v1")
 MODEL = os.environ.get("VLLM_MODEL", "lightning")
 
-# vLLM doesn't check the key, but the client requires one.
-_client = AsyncOpenAI(base_url=VLLM_URL, api_key="unused", timeout=600)
+# One client per event loop: a client's pooled connections belong to the loop that
+# opened them, and reusing them from another loop fails with "Event loop is closed".
+_clients: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, AsyncOpenAI]" = weakref.WeakKeyDictionary()
+
+
+def _get_client() -> AsyncOpenAI:
+    loop = asyncio.get_running_loop()
+    if loop not in _clients:
+        # vLLM doesn't check the key, but the client requires one.
+        _clients[loop] = AsyncOpenAI(base_url=VLLM_URL, api_key="unused", timeout=600)
+    return _clients[loop]
 
 
 async def chat(
@@ -56,7 +66,7 @@ async def chat(
         }
 
     start = time.perf_counter()
-    resp = await _client.chat.completions.create(
+    resp = await _get_client().chat.completions.create(
         model=MODEL,
         messages=messages,
         max_tokens=max_tokens,

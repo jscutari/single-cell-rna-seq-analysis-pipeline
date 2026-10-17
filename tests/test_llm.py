@@ -31,7 +31,8 @@ def client(monkeypatch):
         sent.append(kwargs)
         return box["response"]
 
-    monkeypatch.setattr(llm, "_client", SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
+    fake = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(llm, "_get_client", lambda: fake)
     return SimpleNamespace(sent=sent, box=box)
 
 
@@ -82,6 +83,18 @@ async def test_tools_add_force_nonempty_content_and_tool_calls_are_recorded(clie
     assert client.sent[0]["tools"] == tools
     assert client.sent[0]["extra_body"]["chat_template_kwargs"]["force_nonempty_content"] is True
     assert call.tool_calls[0]["function"]["name"] == "f"
+
+
+async def test_each_event_loop_gets_its_own_client():
+    import asyncio
+    first = llm._get_client()
+    assert llm._get_client() is first
+    other = await asyncio.to_thread(lambda: asyncio.run(_client_in_new_loop()))
+    assert other is not first
+
+
+async def _client_in_new_loop():
+    return llm._get_client()
 
 
 async def test_no_tools_or_schema_sends_neither(client, events):
