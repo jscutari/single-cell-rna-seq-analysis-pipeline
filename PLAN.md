@@ -221,7 +221,7 @@ Not needed: logins, multi-user, mobile polish.
 
 ## 12. Dataset
 
-**First run:** Wilk et al. 2020, COVID-19 PBMC atlas, GEO **GSE150728**. It has 7 hospitalized COVID-19 patients and 6 healthy controls, about 57k cells. It's CellVoyager's first case study, so we can compare directly. The original paper's findings to recover:
+**First run:** Wilk et al. 2020, COVID-19 PBMC atlas, GEO **GSE150728**. It has 7 hospitalized COVID-19 patients and 6 healthy controls, 44,721 cells after QC. We use the annotated `.h5ad` from CZ CELLxGENE rather than GEO's per-sample R files. It's CellVoyager's first case study, so we can compare directly. The original paper's findings to recover:
 - interferon-stimulated gene signature
 - HLA class II downregulation
 - developing neutrophil population

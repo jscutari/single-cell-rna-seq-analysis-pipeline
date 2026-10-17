@@ -1,0 +1,16 @@
+[project]
+name = "scrap"
+version = "0.1.0"
+description = "Multi-agent single-cell RNA-seq reanalysis on Nemotron Lightning + vLLM"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.10",
+    "openai>=1.60",
+    "httpx>=0.27",
+]
+
+[tool.uv]
+package = false
+# Hackathon rule: open-source libraries must be at least 2 weeks old.
+# uv ignores any release published after this date when resolving.
+exclude-newer = "2026-10-03T00:00:00Z"
