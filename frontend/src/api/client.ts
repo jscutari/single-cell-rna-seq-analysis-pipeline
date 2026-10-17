@@ -1,18 +1,31 @@
 // The only place the UI talks to the backend. Components call these functions,
-// never fetch() directly. Flip USE_MOCK off once FastAPI (proxied at /api) is up.
+// never fetch() directly.
+//
+// Backend routes live under /api (Vite proxies /api to FastAPI in dev; FastAPI
+// serves the built app in production):
+//   GET  /api/projects                   -> Project[]
+//   POST /api/projects {name}            -> Project
+//   GET  /api/projects/{id}/messages     -> ChatMessage[]
+//   POST /api/projects/{id}/messages {content} -> 204 (reply arrives as a chat_reply event)
+//   GET  /api/projects/{id}/events       -> SSE stream of shared Event JSON
 import { mockProjects } from "../data/mockProjects";
-import type { ProjectSummary } from "../types/schemas";
+import { newId } from "../lib/ids";
+import type { ChatMessage, ProjectSummary } from "../types/schemas";
 import { publishMockEvent } from "./mockEvents";
 
-export const USE_MOCK = true;
+/** Mock data unless started with VITE_USE_MOCK=false. */
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
-  if (!res.ok) throw new Error(`${init?.method ?? "GET"} ${path} failed: ${res.status}`);
-  return res.json() as Promise<T>;
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (typeof init.body === "string" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const res = await fetch(`/api${path}`, { ...init, headers });
+  if (!res.ok) throw new Error(`${init.method ?? "GET"} ${path} failed: ${res.status}`);
+  // 204 / empty bodies are valid answers (e.g. POST /messages).
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 let mockStore = [...mockProjects];
@@ -29,6 +42,12 @@ export async function createProject(name: string): Promise<ProjectSummary> {
     return project;
   }
   return request("/projects", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export async function listMessages(projectId: string): Promise<ChatMessage[]> {
+  // In mock mode the conversation only lives in the UI's state.
+  if (USE_MOCK) return [];
+  return request(`/projects/${projectId}/messages`);
 }
 
 const MOCK_REPLY = "Trademarked 2026  Jiggle by Kerry";
@@ -61,9 +80,4 @@ export async function sendMessage(projectId: string, text: string): Promise<void
     method: "POST",
     body: JSON.stringify({ content: text }),
   });
-}
-
-/** Hex id in the same format as shared.schemas.new_id(). */
-function newId(): string {
-  return crypto.randomUUID().replaceAll("-", "");
 }

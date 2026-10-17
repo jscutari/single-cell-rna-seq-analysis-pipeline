@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createProject, listProjects, sendMessage } from "./api/client";
 import { useProjectStream } from "./api/useProjectStream";
+import { newId } from "./lib/ids";
 import { ChatView } from "./components/ChatView/ChatView";
 import { Composer } from "./components/Composer/Composer";
 import { Page } from "./components/Page/Page";
@@ -49,7 +50,7 @@ export default function App() {
     if (!selectedId || !text) return;
     const projectId = selectedId;
     appendMessage({
-      id: crypto.randomUUID().replaceAll("-", ""),
+      id: newId(),
       project_id: projectId,
       role: "user",
       content: text,
