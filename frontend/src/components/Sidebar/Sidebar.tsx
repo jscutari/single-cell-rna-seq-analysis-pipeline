@@ -14,6 +14,8 @@ interface SidebarProps {
   onSelectChat: (projectId: string, chatId: string) => void;
   onNewChat: (projectId: string) => void;
   onNewProject: () => void;
+  /** Hide "+ New chat" (the real backend keeps one conversation per project). */
+  allowNewChat?: boolean;
 }
 
 export function Sidebar({
@@ -25,6 +27,7 @@ export function Sidebar({
   onSelectChat,
   onNewChat,
   onNewProject,
+  allowNewChat = true,
 }: SidebarProps) {
   return (
     <aside className="sidebar" aria-label="Projects navigation">
@@ -55,12 +58,14 @@ export function Sidebar({
               />
               {expanded && (
                 <ul className="chat-list" aria-label={`${project.name} chats`}>
-                  <li>
-                    <button className="chat-item chat-item--new" type="button" onClick={() => onNewChat(project.id)}>
-                      <PlusIcon />
-                      <span>New chat</span>
-                    </button>
-                  </li>
+                  {allowNewChat && (
+                    <li>
+                      <button className="chat-item chat-item--new" type="button" onClick={() => onNewChat(project.id)}>
+                        <PlusIcon />
+                        <span>New chat</span>
+                      </button>
+                    </li>
+                  )}
                   {chats.map((chat) => {
                     const active = view.kind === "chat" && view.chatId === chat.id;
                     return (

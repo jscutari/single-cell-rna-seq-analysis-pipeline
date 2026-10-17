@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createProject, listChats, listFiles, listFindings, listProjects, sendMessage } from "./api/client";
+import {
+  USE_MOCK,
+  createProject,
+  listChats,
+  listFiles,
+  listFindings,
+  listProjects,
+  mainChat,
+  sendMessage,
+  startRun,
+  stopRun,
+} from "./api/client";
 import { useProjectStream } from "./api/useProjectStream";
 import { fileKind } from "./lib/files";
 import { newId } from "./lib/ids";
@@ -12,12 +23,14 @@ import { Sidebar } from "./components/Sidebar/Sidebar";
 import { SpiralBinding } from "./components/SpiralBinding";
 import { WelcomeView } from "./components/WelcomeCard/WelcomeView";
 import { Workbook } from "./components/Workbook";
-import type { ScrapEvent } from "./types/events";
 import type { ChatMessage, ProjectSummary } from "./types/schemas";
-import type { Chat, FindingCard, ProjectFile, View } from "./types/ui";
+import type { Chat, FindingCard, ProjectFile, RunInfo, StreamEvent, View } from "./types/ui";
 
 /** Give up waiting for a reply after this long, so the typing dots don't spin forever. */
 const REPLY_TIMEOUT_MS = 60_000;
+/** Coalesce bursts of result events into one refresh of files and findings. */
+const REFRESH_DELAY_MS = 400;
+const FINAL_STAGE_STATUS: Record<string, RunInfo["status"]> = { report: "done", stopped: "stopped", failed: "failed" };
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -32,6 +45,10 @@ export default function App() {
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   /** Messages sent per chat that are still waiting for a reply. */
   const [pendingCount, setPendingCount] = useState<Record<string, number>>({});
+  const [runByProject, setRunByProject] = useState<Record<string, RunInfo>>({});
+  const [runError, setRunError] = useState<Record<string, string | undefined>>({});
+  /** Last event id in each project's /state snapshot; the stream continues from it. */
+  const [lastEventId, setLastEventId] = useState<Record<string, number>>({});
 
   // Synchronous bookkeeping that must not wait for a re-render.
   const seenMessageIds = useRef(new Set<string>()); // drops SSE replays / history overlap
@@ -42,6 +59,7 @@ export default function App() {
   const projectDataRequested = useRef(new Set<string>());
   const chatsRef = useRef<Record<string, Chat[]>>({});
   const takenNames = useRef(new Set<string>());
+  const refreshTimers = useRef(new Map<string, Timer>());
 
   useEffect(() => {
     listProjects()
@@ -54,7 +72,11 @@ export default function App() {
 
   useEffect(() => {
     const all = waiting.current;
-    return () => all.forEach((list) => list.forEach((w) => clearTimeout(w.timer)));
+    const refreshes = refreshTimers.current;
+    return () => {
+      all.forEach((list) => list.forEach((w) => clearTimeout(w.timer)));
+      refreshes.forEach(clearTimeout);
+    };
   }, []);
 
   // The preview belongs to a project page; leaving the page closes it.
@@ -91,7 +113,9 @@ export default function App() {
     if (chatsRequested.current.has(projectId)) return;
     chatsRequested.current.add(projectId);
     listChats(projectId)
-      .then(({ chats, messages }) => {
+      .then(({ chats, messages, run, lastEventId: last }) => {
+        if (run) setRunByProject((all) => ({ ...all, [projectId]: run }));
+        if (last !== undefined) setLastEventId((all) => ({ ...all, [projectId]: last }));
         setChats(projectId, (local) => {
           // Chats created before the saved ones arrived go after them, renumbered.
           const extra = local.filter((c) => !chats.some((x) => x.id === c.id));
@@ -105,15 +129,21 @@ export default function App() {
       });
   };
 
+  /** Loads a project's files and findings (local uploads are kept). */
+  const loadProjectData = (projectId: string) =>
+    Promise.all([listFiles(projectId), listFindings(projectId)]).then(([files, findings]) => {
+      setFilesByProject((all) => {
+        const local = (all[projectId] ?? []).filter((f) => f.url?.startsWith("blob:"));
+        return { ...all, [projectId]: [...local, ...files] };
+      });
+      setFindingsByProject((all) => ({ ...all, [projectId]: findings }));
+    });
+
   /** Loads a project's files and findings the first time its page is opened. */
   const ensureProjectData = (projectId: string) => {
     if (projectDataRequested.current.has(projectId)) return;
     projectDataRequested.current.add(projectId);
-    Promise.all([listFiles(projectId), listFindings(projectId)])
-      .then(([files, findings]) => {
-        setFilesByProject((all) => ({ ...all, [projectId]: [...files, ...(all[projectId] ?? [])] }));
-        setFindingsByProject((all) => ({ ...all, [projectId]: findings }));
-      })
+    loadProjectData(projectId)
       .catch((error) => {
         projectDataRequested.current.delete(projectId);
         console.error("Could not load project files and findings", error);
@@ -138,6 +168,32 @@ export default function App() {
     setFilesByProject((all) => ({ ...all, [projectId]: [...added, ...(all[projectId] ?? [])] }));
     setPreviewFileId(added[0].id);
   };
+
+  /** Re-reads files and findings after new results (only for projects already loaded). */
+  const scheduleRefresh = (projectId: string) => {
+    if (!projectDataRequested.current.has(projectId) || refreshTimers.current.has(projectId)) return;
+    refreshTimers.current.set(
+      projectId,
+      setTimeout(() => {
+        refreshTimers.current.delete(projectId);
+        loadProjectData(projectId).catch((error) => console.error("Could not refresh project results", error));
+      }, REFRESH_DELAY_MS),
+    );
+  };
+
+  const setRun = (projectId: string, update: Partial<RunInfo>) =>
+    setRunByProject((all) => ({ ...all, [projectId]: { ...(all[projectId] ?? { status: "idle", stage: null }), ...update } }));
+
+  const handleRun = (projectId: string, action: "start" | "stop") => {
+    setRunError((all) => ({ ...all, [projectId]: undefined }));
+    (action === "start" ? startRun(projectId) : stopRun(projectId))
+      .then((status) => setRun(projectId, action === "start" ? { status, stage: null } : { status }))
+      .catch((error: Error) => setRunError((all) => ({ ...all, [projectId]: error.message })));
+  };
+
+  /** A note from the app (not the agents) shown in a chat, e.g. why a message wasn't taken. */
+  const addNotice = (projectId: string, chatId: string, text: string) =>
+    addMessages(chatId, [{ id: newId(), project_id: projectId, role: "assistant", content: `⚠️ ${text}`, created_at: new Date().toISOString() }]);
 
   const changePending = (chatId: string, delta: number) =>
     setPendingCount((all) => ({ ...all, [chatId]: Math.max(0, (all[chatId] ?? 0) + delta) }));
@@ -179,9 +235,15 @@ export default function App() {
     setExpandedProjectId(projectId);
   };
 
-  /** Creates "Chat N" in a project and opens it. */
+  /** Creates "Chat N" in a project and opens it (with the real backend: opens its one chat). */
   const newChat = (projectId: string): string => {
     ensureChats(projectId);
+    if (!USE_MOCK) {
+      const chat = mainChat(projectId);
+      setChats(projectId, (chats) => (chats.some((c) => c.id === chat.id) ? chats : [chat, ...chats]));
+      openChat(projectId, chat.id);
+      return chat.id;
+    }
     const chat: Chat = {
       id: newId(),
       project_id: projectId,
@@ -223,25 +285,57 @@ export default function App() {
       chatId = newChat(projectId);
     }
     if (!text) return;
-    addMessages(chatId, [{ id: newId(), project_id: projectId, role: "user", content: text, created_at: new Date().toISOString() }]);
+    const id = newId();
+    addMessages(chatId, [{ id, project_id: projectId, role: "user", content: text, created_at: new Date().toISOString() }]);
     const timer = startWaiting(projectId, chatId);
-    sendMessage(projectId, text).catch((error) => {
-      console.error("Could not send message", error);
+    sendMessage(projectId, text, id).catch((error: Error & { status?: number }) => {
+      // A refusal the user can act on (e.g. 409 "start a new run") is shown in the chat, not an app error.
+      const refused = error.status !== undefined && error.status < 500;
+      (refused ? console.warn : console.error)("Could not send message", error);
       stopWaiting(projectId, timer);
+      addNotice(projectId, chatId, error.message);
     });
   };
 
   const streamProjectId = view.kind === "home" ? expandedProjectId : view.projectId;
-  useProjectStream(streamProjectId, (event: ScrapEvent) => {
-    if (event.type !== "chat_reply") return;
+  /** Where an incoming message for a project goes when no chat is waiting for it. */
+  const defaultChat = (projectId: string): string | undefined =>
+    (view.kind === "chat" && view.projectId === projectId ? view.chatId : undefined) ??
+    chatsRef.current[projectId]?.[0]?.id ??
+    (USE_MOCK ? undefined : mainChat(projectId).id);
+
+  const onStreamEvent = (event: StreamEvent) => {
     const projectId = event.project_id;
-    const chatId =
-      (waiting.current.get(projectId)?.[0]?.chatId) ??
-      (view.kind === "chat" && view.projectId === projectId ? view.chatId : undefined) ??
-      chatsRef.current[projectId]?.[0]?.id;
-    if (!chatId) return;
-    if (addMessages(chatId, [event.payload]) && waiting.current.get(projectId)?.length) stopWaiting(projectId);
-  });
+    switch (event.type) {
+      case "chat_reply": {
+        const chatId = waiting.current.get(projectId)?.[0]?.chatId ?? defaultChat(projectId);
+        if (!chatId) return;
+        if (!USE_MOCK && !chatsRef.current[projectId]?.length) setChats(projectId, () => [mainChat(projectId)]);
+        if (addMessages(chatId, [event.payload]) && waiting.current.get(projectId)?.length) stopWaiting(projectId);
+        return;
+      }
+      case "user_message": {
+        // Sent from another tab (our own messages are already shown, same id).
+        const chatId = defaultChat(projectId);
+        if (chatId) addMessages(chatId, [event.payload]);
+        return;
+      }
+      case "run_status":
+        setRun(projectId, { status: event.payload.status });
+        return;
+      case "stage_done": {
+        const final = FINAL_STAGE_STATUS[event.payload.stage];
+        setRun(projectId, final ? { stage: event.payload.stage, status: final } : { stage: event.payload.stage });
+        scheduleRefresh(projectId);
+        return;
+      }
+      case "finding":
+      case "hypothesis_status":
+        scheduleRefresh(projectId);
+        return;
+    }
+  };
+  useProjectStream(streamProjectId, onStreamEvent, streamProjectId ? lastEventId[streamProjectId] : undefined);
 
   const closePreview = useCallback(() => setPreviewFileId(null), []);
 
@@ -263,6 +357,10 @@ export default function App() {
         activeFileId={previewFile?.id ?? null}
         onOpenFile={(file) => setPreviewFileId((current) => (current === file.id ? null : file.id))}
         onUpload={(picked) => uploadFiles(project.id, picked)}
+        run={USE_MOCK ? undefined : (runByProject[project.id] ?? { status: "idle", stage: null })}
+        runError={runError[project.id]}
+        onStartRun={() => handleRun(project.id, "start")}
+        onStopRun={() => handleRun(project.id, "stop")}
       />
     );
     panel = previewFile && <FilePreview file={previewFile} onClose={closePreview} />;
@@ -283,6 +381,7 @@ export default function App() {
         onSelectChat={openChat}
         onNewChat={newChat}
         onNewProject={handleNewProject}
+        allowNewChat={USE_MOCK}
       />
       <SpiralBinding />
       <Page view={content} composer={view.kind === "project" ? undefined : composer} panel={panel} />

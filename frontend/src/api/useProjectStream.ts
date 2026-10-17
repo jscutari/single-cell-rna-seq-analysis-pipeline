@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { EVENT_TYPES, type ScrapEvent } from "../types/events";
+import { EVENT_TYPES } from "../types/events";
+import { BACKEND_EVENT_TYPES, type StreamEvent } from "../types/ui";
 import { USE_MOCK } from "./client";
 import { subscribeMockEvents } from "./mockEvents";
 
@@ -9,11 +10,20 @@ const RECONNECT_DELAY_MS = 3000;
 /**
  * Subscribes to a project's live event stream (GET /api/projects/{id}/events, SSE).
  * In mock mode, events come from the in-memory mock bus instead.
+ *
+ * `after` is the last event id the app already has (from /state); the stream
+ * starts right after it. Reconnects resume from the last event received.
  */
-export function useProjectStream(projectId: string | null, onEvent: (event: ScrapEvent) => void) {
-  // Keep the latest handler without resubscribing on every render.
+export function useProjectStream(
+  projectId: string | null,
+  onEvent: (event: StreamEvent) => void,
+  after?: number,
+) {
+  // Keep the latest handler and start point without resubscribing on every render.
   const handlerRef = useRef(onEvent);
   handlerRef.current = onEvent;
+  const afterRef = useRef(after);
+  afterRef.current = after;
 
   useEffect(() => {
     if (!projectId) return;
@@ -27,23 +37,28 @@ export function useProjectStream(projectId: string | null, onEvent: (event: Scra
     let source: EventSource | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
+    let lastId: number | undefined = afterRef.current;
 
     const handle = (e: MessageEvent<string>) => {
-      let event: ScrapEvent;
+      let event: StreamEvent;
       try {
-        event = JSON.parse(e.data) as ScrapEvent;
+        event = JSON.parse(e.data) as StreamEvent;
       } catch {
         console.warn("[stream] skipped malformed event", e.data);
         return;
       }
+      const id = Number(e.lastEventId);
+      if (Number.isFinite(id) && e.lastEventId !== "") lastId = id;
       handlerRef.current(event);
     };
 
     const connect = () => {
-      source = new EventSource(`/api/projects/${projectId}/events`);
-      // The backend may send named SSE events (event: <type>) or unnamed ones; accept both.
+      const from = lastId ?? afterRef.current;
+      const query = from === undefined ? "" : `?after=${from}`;
+      source = new EventSource(`/api/projects/${projectId}/events${query}`);
+      // The backend sends named SSE events (event: <type>); accept unnamed ones too.
       source.onmessage = handle;
-      EVENT_TYPES.forEach((type) => source!.addEventListener(type, handle));
+      [...EVENT_TYPES, ...BACKEND_EVENT_TYPES].forEach((type) => source!.addEventListener(type, handle));
       source.onerror = () => {
         // Transient drops reconnect on their own (readyState CONNECTING). An error
         // response closes the stream for good, so reopen it ourselves.

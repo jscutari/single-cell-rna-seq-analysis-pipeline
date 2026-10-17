@@ -66,6 +66,10 @@ def load_orchestrator(settings: Settings):
         if orchestrator.DATA_ROOT != settings.data_root:
             log.warning("DATA_ROOT differs: backend %s, orchestrator %s", settings.data_root, orchestrator.DATA_ROOT)
         return orchestrator
+    if settings.agents == "replay":
+        from backend.dev.replay_orchestrator import ReplayOrchestrator
+
+        return ReplayOrchestrator(settings.replay_file, settings.data_root, settings.replay_speed)
     raise ValueError(f"Unknown SCRAP_AGENTS={settings.agents!r} (expected 'real' or 'replay')")
 
 

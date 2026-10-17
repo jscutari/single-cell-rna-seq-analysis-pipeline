@@ -25,8 +25,8 @@ class FakeEventSource {
     this.readyState = FakeEventSource.CLOSED;
   }
   /** Simulate a server-sent message. */
-  emit(data: string, type?: string) {
-    const event = new MessageEvent(type ?? "message", { data });
+  emit(data: string, type?: string, lastEventId = "") {
+    const event = new MessageEvent(type ?? "message", { data, lastEventId });
     if (type) this.listeners.get(type)?.forEach((fn) => fn(event));
     else this.onmessage?.(event);
   }
@@ -112,6 +112,42 @@ describe("useProjectStream (backend)", () => {
     FakeEventSource.instances[1].fail();
     vi.advanceTimersByTime(10000);
     expect(FakeEventSource.instances).toHaveLength(2);
+  });
+});
+
+describe("useProjectStream (resume points)", () => {
+  it("starts after the snapshot's last event id", async () => {
+    const { useProjectStream } = await loadHook("false");
+    renderHook(() => useProjectStream("p1", vi.fn(), 42));
+    expect(FakeEventSource.instances[0].url).toBe("/api/projects/p1/events?after=42");
+  });
+
+  it("starts from now when no snapshot id is known", async () => {
+    const { useProjectStream } = await loadHook("false");
+    renderHook(() => useProjectStream("p1", vi.fn()));
+    expect(FakeEventSource.instances[0].url).toBe("/api/projects/p1/events");
+  });
+
+  it("reconnects from the last event it received", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { useProjectStream } = await loadHook("false");
+    renderHook(() => useProjectStream("p1", vi.fn(), 10));
+    const first = FakeEventSource.instances[0];
+    first.emit(JSON.stringify(replyEvent()), "chat_reply", "17");
+    first.fail();
+    vi.advanceTimersByTime(5000);
+    expect(FakeEventSource.instances[1].url).toBe("/api/projects/p1/events?after=17");
+  });
+
+  it("delivers backend-only events (user_message, run_status)", async () => {
+    const { useProjectStream } = await loadHook("false");
+    const onEvent = vi.fn();
+    renderHook(() => useProjectStream("p1", onEvent));
+    const source = FakeEventSource.instances[0];
+    source.emit(JSON.stringify({ type: "run_status", project_id: "p1", payload: { status: "running" } }), "run_status");
+    source.emit(JSON.stringify({ type: "user_message", project_id: "p1", payload: {} }), "user_message");
+    expect(onEvent.mock.calls.map(([e]) => e.type)).toEqual(["run_status", "user_message"]);
   });
 });
 

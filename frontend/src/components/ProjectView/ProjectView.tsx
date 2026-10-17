@@ -1,7 +1,7 @@
 import { formatBytes, formatP } from "../../lib/format";
 import { relativeTime } from "../../lib/relativeTime";
 import type { ProjectSummary } from "../../types/schemas";
-import type { FindingCard, ProjectFile } from "../../types/ui";
+import type { FindingCard, ProjectFile, RunInfo } from "../../types/ui";
 import { FindingChart } from "../Charts/FindingChart";
 import { useRef } from "react";
 import { FileIcon, UploadIcon } from "../icons/Icons";
@@ -14,7 +14,30 @@ interface ProjectViewProps {
   activeFileId?: string | null;
   onOpenFile?: (file: ProjectFile) => void;
   onUpload?: (files: File[]) => void;
+  /** The project's analysis run; omit to hide run controls. */
+  run?: RunInfo;
+  /** Why the last start/stop didn't work (from the backend). */
+  runError?: string;
+  onStartRun?: () => void;
+  onStopRun?: () => void;
 }
+
+const RUN_LABEL: Record<RunInfo["status"], string> = {
+  idle: "Not started",
+  running: "Running",
+  done: "Finished",
+  stopped: "Stopped",
+  failed: "Failed",
+};
+
+const STAGE_LABEL: Record<string, string> = {
+  preprocess: "preparing the data",
+  intake: "agreeing the brief in chat",
+  literature: "reading the literature",
+  planning: "planning hypotheses",
+  analysis: "testing hypotheses",
+  report: "report written",
+};
 
 const KIND_LABEL: Record<ProjectFile["kind"], string> = {
   pdf: "PDF",
@@ -30,7 +53,7 @@ const VERDICT_LABEL = { approve: "Critic approved", revise: "Critic: revise", re
 const NOVELTY_LABEL = { known: "Known", partly_known: "Partly known", not_found_in_sources: "Not found in sources" } as const;
 
 /** A project's page: its files and key findings. */
-export function ProjectView({ project, files, findings, activeFileId, onOpenFile, onUpload }: ProjectViewProps) {
+export function ProjectView({ project, files, findings, activeFileId, onOpenFile, onUpload, run, runError, onStartRun, onStopRun }: ProjectViewProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   return (
     <div className="project-page">
@@ -41,6 +64,26 @@ export function ProjectView({ project, files, findings, activeFileId, onOpenFile
           {findings.length} {findings.length === 1 ? "finding" : "findings"}
         </p>
       </header>
+
+      {run && (
+        <div className={`run-bar run-bar--${run.status}`} role="status" aria-label="Analysis run">
+          <span className="run-dot" aria-hidden="true" />
+          <span className="run-text">
+            <strong>{RUN_LABEL[run.status]}</strong>
+            {run.status === "running" && run.stage && ` · ${STAGE_LABEL[run.stage] ?? run.stage}`}
+            {runError && <span className="run-error"> · {runError}</span>}
+          </span>
+          {run.status === "running" ? (
+            <button type="button" className="run-button run-button--stop" onClick={onStopRun}>
+              Stop run
+            </button>
+          ) : (
+            <button type="button" className="run-button" onClick={onStartRun}>
+              {run.status === "idle" ? "Start run" : "Start new run"}
+            </button>
+          )}
+        </div>
+      )}
 
       <section className="project-section" aria-labelledby="files-heading">
         <div className="project-section-head">
@@ -106,10 +149,17 @@ export function ProjectView({ project, files, findings, activeFileId, onOpenFile
         </div>
         {findings.length ? (
           <div className="finding-grid">
-            {findings.map(({ finding, chart, mock }) => (
+            {findings.map(({ finding, chart, mock, hypothesis_title, figure_url, notebook_url }) => (
               <article key={finding.id} className="finding-card" aria-label={finding.claim}>
                 {mock && <span className="finding-mock">sample data</span>}
-                <FindingChart chart={chart} />
+                {chart ? (
+                  <FindingChart chart={chart} />
+                ) : figure_url ? (
+                  <img className="finding-figure" src={figure_url} alt={`Figure for: ${finding.claim}`} />
+                ) : (
+                  <p className="finding-nochart">No chart for this finding</p>
+                )}
+                {hypothesis_title && <p className="finding-hypothesis">{hypothesis_title}</p>}
                 <h3 className="finding-claim">{finding.claim}</h3>
                 <ul className="finding-chips" aria-label="Statistics">
                   <li className="chip">{finding.test}</li>
@@ -120,6 +170,20 @@ export function ProjectView({ project, files, findings, activeFileId, onOpenFile
                   )}
                   {finding.novelty && <li className="chip chip--novelty">{NOVELTY_LABEL[finding.novelty]}</li>}
                 </ul>
+                {(notebook_url || (chart && figure_url)) && (
+                  <p className="finding-links">
+                    {chart && figure_url && (
+                      <a href={figure_url} target="_blank" rel="noreferrer">
+                        Figure
+                      </a>
+                    )}
+                    {notebook_url && (
+                      <a href={notebook_url} target="_blank" rel="noreferrer">
+                        Notebook
+                      </a>
+                    )}
+                  </p>
+                )}
               </article>
             ))}
           </div>

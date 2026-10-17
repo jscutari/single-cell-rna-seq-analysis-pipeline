@@ -155,7 +155,7 @@ describe("chat", () => {
     await renderApp();
     await openChat("Project 1", "Chat 1");
     send("hello");
-    expect(api.sendMessage).toHaveBeenCalledWith("p1", "hello");
+    expect(api.sendMessage).toHaveBeenCalledWith("p1", "hello", expect.stringMatching(/^[0-9a-f]{32}$/));
     expect(typing()).toBeTruthy();
     reply("r1");
     expect(bubbles()).toEqual(["first question", "first answer", "hello", "Trademarked 2026  Jiggle by Kerry"]);

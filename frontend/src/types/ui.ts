@@ -5,7 +5,8 @@
 // chat_id, so multiple chats per project live only in the UI for now. Once the
 // contract has them, replace Chat with the shared model and route replies by chat_id.
 
-import type { Finding } from "./schemas";
+import type { EventType, ScrapEvent } from "./events";
+import type { ChatMessage, Finding } from "./schemas";
 
 export interface Chat {
   id: string;
@@ -33,17 +34,52 @@ export interface ProjectFile {
   url: string | null;
   added_at: string;
   /** One-line description, e.g. "44,649 cells · 13 donors". */
-  summary?: string;
+  summary?: string | null;
+  /** Path relative to the project folder (backend only). */
+  path?: string;
 }
 
+/**
+ * Chart data, as built by agents/results.py (data units). Mock volcano charts
+ * omit `points` and use the sketch's own coordinates for labels.
+ */
 export type ChartSpec =
-  | { type: "volcano"; labels: { x: number; y: number; text: string }[] }
-  | { type: "bar"; xLabel: string; bars: { label: string; value: number }[] }
+  | {
+      type: "volcano";
+      labels: { x: number; y: number; text: string }[];
+      points?: [number, number][];
+      threshold?: number;
+      x_label?: string;
+      y_label?: string;
+    }
+  | { type: "bar"; xLabel: string; bars: { label: string; value: number; group?: string }[] }
   | { type: "umap"; clusters: { label: string; color: string; points: [number, number][] }[] };
 
-/** A key finding on the project page: the shared Finding plus chart data (mock for now). */
+/** A key finding on the project page: the shared Finding plus chart data and file links. */
 export interface FindingCard {
   finding: Finding;
-  chart: ChartSpec;
+  /** null when no result table backs the finding. */
+  chart: ChartSpec | null;
   mock: boolean;
+  hypothesis_title?: string | null;
+  figure_url?: string | null;
+  notebook_url?: string | null;
 }
+
+export type RunStatus = "idle" | "running" | "done" | "stopped" | "failed";
+
+/** A project's run, as tracked by the backend. */
+export interface RunInfo {
+  status: RunStatus;
+  stage: string | null;
+}
+
+/** Backend-only stream events (not in shared/events.py). */
+export type BackendEvent =
+  | { id: string; type: "user_message"; project_id: string; payload: ChatMessage; created_at: string }
+  | { id: string; type: "run_status"; project_id: string; payload: { status: RunStatus }; created_at: string };
+
+export type StreamEvent = ScrapEvent | BackendEvent;
+
+export const BACKEND_EVENT_TYPES = ["user_message", "run_status"] as const;
+export type StreamEventType = EventType | (typeof BACKEND_EVENT_TYPES)[number];
