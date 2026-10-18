@@ -8,7 +8,7 @@ in a directory mounted into the container at /conn.
 Layout on the host, per hypothesis:
   <project_dir>/processed.h5ad                      mounted read-only at /data
   <project_dir>/hypotheses/<hid>/                   mounted read-write at /work
-  <project_dir>/hypotheses/<hid>/<hid>.ipynb        every cell, with outputs
+  <project_dir>/hypotheses/<hid>/<name>.ipynb       every cell, with outputs (name defaults to <hid>)
   <project_dir>/hypotheses/<hid>/figures/*.png      every plot
   $KERNEL_DIR/<hid>/                                sockets + connection file
 
@@ -62,6 +62,7 @@ class _Kernel:
     container: str
     client: AsyncKernelClient
     work_dir: Path
+    notebook_name: str = ""
     notebook: nbformat.NotebookNode = field(default_factory=nbformat.v4.new_notebook)
     next_index: int = 0
 
@@ -89,7 +90,8 @@ def _connection_info(ip: str, key: str) -> dict:
     }
 
 
-async def start_kernel(hypothesis_id: str, project_id: str, project_dir: str | Path) -> None:
+async def start_kernel(hypothesis_id: str, project_id: str, project_dir: str | Path,
+                       notebook_name: str | None = None) -> None:
     """Start a sandboxed kernel for this hypothesis and run the preamble (loads `adata`)."""
     if hypothesis_id in _kernels:
         return
@@ -124,7 +126,8 @@ async def start_kernel(hypothesis_id: str, project_id: str, project_dir: str | P
     client.start_channels()
     await client.wait_for_ready(timeout=120)
 
-    kernel = _Kernel(hypothesis_id, project_id, container, client, work_dir)
+    kernel = _Kernel(hypothesis_id, project_id, container, client, work_dir,
+                     notebook_name=notebook_name or hypothesis_id)
     _kernels[hypothesis_id] = kernel
     result = await _execute(kernel, PREAMBLE, timeout=300)
     if result["error"]:
@@ -196,7 +199,7 @@ async def run_cell(hypothesis_id: str, source: str, timeout: float = DEFAULT_TIM
 
     cell.ended_at = now()
     kernel.notebook.cells.append(nb_cell)
-    nbformat.write(kernel.notebook, kernel.work_dir / f"{hypothesis_id}.ipynb")
+    nbformat.write(kernel.notebook, kernel.work_dir / f"{kernel.notebook_name}.ipynb")
     emit(Event(type=EventType.cell_finished, project_id=kernel.project_id, payload=cell))
     return cell
 
@@ -210,9 +213,9 @@ async def _recover(kernel: _Kernel) -> None:
     except TimeoutError:
         pass
     hid, pid, project_dir = kernel.hypothesis_id, kernel.project_id, kernel.work_dir.parent.parent
-    notebook, next_index = kernel.notebook, kernel.next_index
+    notebook, next_index, name = kernel.notebook, kernel.next_index, kernel.notebook_name
     await stop_kernel(hid)
-    await start_kernel(hid, pid, project_dir)
+    await start_kernel(hid, pid, project_dir, name)
     # Keep the notebook history; variables from earlier cells are gone.
     _kernels[hid].notebook, _kernels[hid].next_index = notebook, next_index
 

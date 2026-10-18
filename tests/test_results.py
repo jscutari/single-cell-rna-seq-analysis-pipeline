@@ -156,6 +156,7 @@ def test_write_state_collects_everything(tmp_path, summary, brief):
     assert on_disk == json.loads(json.dumps(state))
     assert on_disk["stage"] == "analysis" and on_disk["brief"]["condition_column"] == "disease"
     assert on_disk["dataset"]["n_cells"] == 1000 and on_disk["dataset"]["chart"]["clusters"][0]["label"] == "NK"
+    assert on_disk["dataset"]["n_donors"] == 4 and on_disk["dataset"]["conditions"] == {"COVID-19": 600, "normal": 400}
     assert [e["hypothesis"]["status"] for e in on_disk["hypotheses"]] == ["approved", "coding"]
     assert on_disk["hypotheses"][1]["analysis"] is None
     [card] = on_disk["findings"]
@@ -170,3 +171,22 @@ def test_write_state_collects_everything(tmp_path, summary, brief):
 def test_write_state_before_preprocessing(tmp_path):
     state = results.write_state(tmp_path, "p1", "preprocess", None, None, "", [], [], None)
     assert state["dataset"] is None and state["brief"] is None and state["files"] == []
+
+
+@pytest.mark.parametrize("title, expected", [
+    ("The Hallmark interferon-alpha response is higher in CD14 monocytes from COVID-19 patients than healthy donors",
+     "hallmark_interferon_alpha_response_higher_cd14_monocytes"),
+    ("HLA class II genes are lower in CD14 monocytes", "hla_class_ii_genes_lower_cd14_monocytes"),
+    ("???", "analysis"),
+])
+def test_slug_makes_readable_notebook_names(title, expected):
+    assert results.slug(title) == expected
+    assert len(results.slug(title)) <= 60
+
+
+def test_list_files_finds_named_notebooks(tmp_path, summary, brief):
+    h = tmp_path / "hypotheses" / "h1"
+    h.mkdir(parents=True)
+    (h / "ifn_alpha_cd14.ipynb").write_text("{}")
+    files = results.list_files(tmp_path, "p1", summary, brief, {"h1": "IFN"})
+    assert [f["path"] for f in files] == ["hypotheses/h1/ifn_alpha_cd14.ipynb"]

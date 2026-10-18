@@ -5,6 +5,7 @@ import {
   listChats,
   listFiles,
   listFindings,
+  getOverview,
   listProjects,
   mainChat,
   sendMessage,
@@ -27,7 +28,7 @@ import { SpiralBinding } from "./components/SpiralBinding";
 import { WelcomeView } from "./components/WelcomeCard/WelcomeView";
 import { Workbook } from "./components/Workbook";
 import type { ChatMessage, ProjectSummary } from "./types/schemas";
-import type { Chat, FindingCard, ProjectFile, RunInfo, StreamEvent, View } from "./types/ui";
+import type { Chat, FindingCard, ProjectFile, RunInfo, StreamEvent, View, ProjectOverview } from "./types/ui";
 
 /** Give up waiting for a reply after this long, so the typing dots don't spin forever. */
 const REPLY_TIMEOUT_MS = 60_000;
@@ -70,6 +71,7 @@ export default function App() {
   const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
   const [filesByProject, setFilesByProject] = useState<Record<string, ProjectFile[]>>({});
   const [findingsByProject, setFindingsByProject] = useState<Record<string, FindingCard[]>>({});
+  const [overviewByProject, setOverviewByProject] = useState<Record<string, ProjectOverview | null>>({});
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   /** Messages sent per chat that are still waiting for a reply. */
   const [pendingCount, setPendingCount] = useState<Record<string, number>>({});
@@ -210,7 +212,8 @@ export default function App() {
 
   /** Loads a project's files and findings (local uploads are kept). */
   const loadProjectData = (projectId: string) =>
-    Promise.all([listFiles(projectId), listFindings(projectId)]).then(([files, findings]) => {
+    Promise.all([listFiles(projectId), listFindings(projectId), getOverview(projectId)]).then(([files, findings, overview]) => {
+      setOverviewByProject((all) => ({ ...all, [projectId]: overview }));
       setFilesByProject((all) => {
         const local = (all[projectId] ?? []).filter((f) => f.url?.startsWith("blob:"));
         return { ...all, [projectId]: [...local, ...files] };
@@ -512,6 +515,7 @@ export default function App() {
         project={project}
         files={files}
         findings={findingsByProject[project.id] ?? []}
+        overview={overviewByProject[project.id] ?? null}
         activeFileId={previewFile?.id ?? null}
         onOpenFile={(file) => setPreviewFileId((current) => (current === file.id ? null : file.id))}
         onUpload={(picked) => uploadFiles(project.id, picked)}

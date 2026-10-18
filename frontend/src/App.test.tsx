@@ -11,13 +11,14 @@ const api = vi.hoisted(() => ({
   listMessages: vi.fn(),
   listFiles: vi.fn(),
   listFindings: vi.fn(),
+  getOverview: vi.fn(),
   sendMessage: vi.fn(),
 }));
 vi.mock("./api/client", () => ({ USE_MOCK: true, ...api }));
 
 import App from "./App";
 import { publishMockEvent } from "./api/mockEvents";
-import { mockFilesFor, mockFindingsFor } from "./data/mockWorkspace";
+import { mockFilesFor, mockFindingsFor, mockOverviewFor } from "./data/mockWorkspace";
 
 const NOW = new Date().toISOString();
 const PROJECTS: ProjectSummary[] = [
@@ -94,6 +95,7 @@ beforeEach(() => {
   api.listChats.mockImplementation(async (projectId: string) => seededChats(projectId));
   api.listFiles.mockImplementation(async (projectId: string) => mockFilesFor(projectId));
   api.listFindings.mockImplementation(async (projectId: string) => mockFindingsFor(projectId));
+  api.getOverview.mockImplementation(async (projectId: string) => mockOverviewFor(projectId));
   api.sendMessage.mockResolvedValue(undefined);
 });
 afterEach(() => {
@@ -666,5 +668,43 @@ describe("name", () => {
     expect(screen.getByRole("button", { name: "SCRAP home" }).getAttribute("title")).toContain(
       "Single-cell RNA-seq Analysis Pipeline",
     );
+  });
+});
+
+describe("project overview", () => {
+  it("opens with what the project is, then key findings, then files", async () => {
+    await renderApp();
+    await click(projectButton("Project 1"));
+    const sections = Array.from(document.querySelectorAll(".project-section")).map(
+      (sec) => sec.querySelector(".project-section-title")!.textContent,
+    );
+    expect(sections).toEqual(["Overview", "Key findings", "Files"]);
+    const overview = screen.getByRole("region", { name: "Overview" });
+    expect(within(overview).getByText(/monocytes, respond differently/)).toBeTruthy();
+    expect(within(overview).getByText("44,649 cells · 13 donors · COVID-19 vs normal · human")).toBeTruthy();
+    expect(within(overview).getByText(/reproduce Wilk et al/)).toBeTruthy();
+  });
+
+  it("has no overview section when there is nothing to say yet", async () => {
+    await renderApp();
+    await click(projectButton("Other"));
+    expect(screen.queryByRole("region", { name: "Overview" })).toBeNull();
+  });
+
+  it("shows approved findings as cards and lists the rest briefly", async () => {
+    const base = { critic_notes: "", citations: [], sources_searched: [], notebook_path: null, figure_path: null,
+                   statistic: null, effect_size: 1, novelty: null, hypothesis_id: "h", test: "Welch t-test, 7 vs 6 donors" };
+    api.listFindings.mockResolvedValue([
+      { mock: false, chart: null, hypothesis_title: "IFN is up", finding: { ...base, id: "f1", claim: "IFN up", p_adj: 0.01, critic_verdict: "approve" } },
+      { mock: false, chart: null, hypothesis_title: "CD16 ISGs differ", finding: { ...base, id: "f2", claim: "CD16 ISGs higher", p_adj: 0.074, critic_verdict: "reject", critic_notes: "Not significant" } },
+    ]);
+    await renderApp();
+    await click(projectButton("Project 1"));
+    expect(screen.getAllByRole("article").map((a) => a.getAttribute("aria-label"))).toEqual(["IFN up"]);
+    const rest = document.querySelector(".also-tested")!;
+    expect(rest.textContent).toContain("Also tested, not supported");
+    expect(rest.textContent).toContain("CD16 ISGs differ");
+    expect(rest.textContent).toContain("p_adj 0.074");
+    expect(rest.querySelector("li")!.getAttribute("title")).toBe("Not significant");
   });
 });

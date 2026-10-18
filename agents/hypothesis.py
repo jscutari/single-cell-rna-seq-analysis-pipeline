@@ -154,7 +154,7 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) ->
     critic=False skips checks and critique and approves whatever the finding writer
     claims; it exists only for the rigor benchmark.
     """
-    await km.start_kernel(h.id, ctx.project_id, ctx.project_dir)
+    await km.start_kernel(h.id, ctx.project_id, ctx.project_dir, notebook_name=results.slug(h.title))
     cells, notes, labels = [], [], []  # labels[i] is the step that cells[i] carried out
     finding: Finding | None = None
     try:
@@ -234,7 +234,7 @@ def _attach_files(ctx: RunContext, h: Hypothesis, finding: Finding, cells: list[
     figs = {c.index: c.figure_paths for c in cells if c.figure_paths}
     pick = figs.get(figure_cell) or (list(figs.values())[-1] if figs else [])
     finding.figure_path = pick[0] if pick else None
-    finding.notebook_path = str(ctx.project_dir / "hypotheses" / h.id / f"{h.id}.ipynb")
+    finding.notebook_path = str(ctx.project_dir / "hypotheses" / h.id / f"{results.slug(h.title)}.ipynb")
 
 
 async def _demo() -> None:
