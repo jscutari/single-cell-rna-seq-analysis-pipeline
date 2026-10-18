@@ -10,8 +10,12 @@ export interface ResultsState {
 /** First paragraph under the report's first heading, as plain text (no Markdown marks). */
 export function reportSummary(markdown: string | null | undefined): string | null {
   if (!markdown) return null;
-  const blocks = markdown.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
-  const paragraph = blocks.find((b) => !b.startsWith("#"));
+  // Headings may sit directly above their text with no blank line, so drop heading lines per block.
+  const blocks = markdown
+    .split(/\n\s*\n/)
+    .map((b) => b.split("\n").filter((line) => !line.trim().startsWith("#")).join(" ").trim())
+    .filter(Boolean);
+  const paragraph = blocks[0];
   if (!paragraph) return null;
   return paragraph.replace(/\*\*|__|\*|`/g, "").replace(/\s+/g, " ").trim();
 }

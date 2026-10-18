@@ -14,6 +14,9 @@ describe("overview", () => {
   it("takes the first paragraph of the report, without Markdown", () => {
     expect(reportSummary(REPORT)).toBe("In this dataset of 44,649 blood cells, CD14 monocytes show a stronger interferon response.");
     expect(reportSummary("# Only a heading")).toBeNull();
+    // The reporter sometimes writes the text right under its heading, with no blank line.
+    expect(reportSummary("# Title\n\n## Summary\nAnalysis of 13 donors reveals a robust response.\n\n## Approved Findings\n..."))
+      .toBe("Analysis of 13 donors reveals a robust response.");
     expect(reportSummary(null)).toBeNull();
   });
 
