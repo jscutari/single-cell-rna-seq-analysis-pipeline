@@ -1,5 +1,5 @@
 // Sample chats per project for mock mode; replaced by backend data later.
-import type { Chat, FindingCard, ProjectFile } from "../types/ui";
+import type { Chat, FindingCard, ProjectFile, ProjectOverview } from "../types/ui";
 import type { ChatMessage } from "../types/schemas";
 
 const HOUR = 3_600_000;
@@ -163,4 +163,18 @@ export function mockFindingsFor(projectId: string): FindingCard[] {
       },
     },
   ];
+}
+
+/** Sample overview for the first sample project. */
+export function mockOverviewFor(projectId: string): ProjectOverview | null {
+  if (projectId !== "p1") return null;
+  return {
+    goal: "Understand how innate immune cells, especially monocytes, respond differently in hospitalized COVID-19 patients versus healthy donors.",
+    organism: "human",
+    n_cells: 44649,
+    n_donors: 13,
+    conditions: { "COVID-19": 28023, normal: 16626 },
+    summary:
+      "CD14 monocytes from COVID-19 patients show a stronger interferon-alpha response and lower HLA class II expression than healthy donors; both reproduce Wilk et al. 2020.",
+  };
 }

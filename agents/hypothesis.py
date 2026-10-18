@@ -13,7 +13,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from agents import checks, literature, prompting, results
-from agents.llm import chat
+from agents.llm import chat, chat_json
 from sandbox import kernel_manager as km
 from shared.events import Event, EventType, emit
 from shared.schemas import Brief, CellStatus, CodeCell, CriticVerdict, Finding, Hypothesis, HypothesisStatus
@@ -95,9 +95,8 @@ async def plan_hypotheses(ctx: RunContext, n: int = 3, background: str = "",
                           past: list[Hypothesis] | None = None) -> list[Hypothesis]:
     user = f"Background:\n{background or '(none yet)'}\n\nPast hypotheses:\n" + (
         "\n".join(f"- {h.title} ({h.status})" for h in past or []) or "(none)")
-    call = await chat("planner", prompting.messages(ctx.prefix, "planner", user, n=n),
-                      project_id=ctx.project_id, schema=Plan)
-    plan = Plan.model_validate_json(call.output)
+    _, plan = await chat_json("planner", prompting.messages(ctx.prefix, "planner", user, n=n), Plan,
+                              chat_fn=chat, project_id=ctx.project_id)
     hypotheses = [Hypothesis(project_id=ctx.project_id, **p.model_dump()) for p in plan.hypotheses[:n]]
     for h in hypotheses:
         _set_status(ctx, h, HypothesisStatus.planning)
@@ -134,9 +133,9 @@ async def _read(ctx: RunContext, h: Hypothesis, step: str, cell: CodeCell) -> st
 async def _write_finding(ctx: RunContext, h: Hypothesis, cells: list[CodeCell], notes: list[str]) -> DraftFinding:
     user = (f"Hypothesis: {h.title}\n\n" + "\n\n".join(_show_cell(c) for c in cells) +
             "\n\nReader notes:\n" + "\n".join(f"- {n}" for n in notes))
-    call = await chat("finding", prompting.messages(ctx.prefix, "finding", user),
-                      project_id=ctx.project_id, hypothesis_id=h.id, schema=DraftFinding)
-    return DraftFinding.model_validate_json(call.output)
+    _, draft = await chat_json("finding", prompting.messages(ctx.prefix, "finding", user), DraftFinding,
+                               chat_fn=chat, project_id=ctx.project_id, hypothesis_id=h.id)
+    return draft
 
 
 async def _critique(ctx: RunContext, h: Hypothesis, cells: list[CodeCell], draft: DraftFinding,
@@ -144,9 +143,9 @@ async def _critique(ctx: RunContext, h: Hypothesis, cells: list[CodeCell], draft
     # Fresh context: no planner rationale or reader notes, only what ran and what is claimed.
     user = ("Claimed finding:\n" + draft.model_dump_json(indent=2) + "\n\nCode and output:\n" +
             "\n\n".join(_show_cell(c) for c in cells) + f"\n\nAutomated checks:\n{report}")
-    call = await chat("critic", prompting.messages(ctx.prefix, "critic", user),
-                      project_id=ctx.project_id, hypothesis_id=h.id, schema=Review)
-    return Review.model_validate_json(call.output)
+    _, review = await chat_json("critic", prompting.messages(ctx.prefix, "critic", user), Review,
+                                chat_fn=chat, project_id=ctx.project_id, hypothesis_id=h.id)
+    return review
 
 
 async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) -> Finding | None:
@@ -155,7 +154,7 @@ async def run_hypothesis(ctx: RunContext, h: Hypothesis, critic: bool = True) ->
     critic=False skips checks and critique and approves whatever the finding writer
     claims; it exists only for the rigor benchmark.
     """
-    await km.start_kernel(h.id, ctx.project_id, ctx.project_dir)
+    await km.start_kernel(h.id, ctx.project_id, ctx.project_dir, notebook_name=results.slug(h.title))
     cells, notes, labels = [], [], []  # labels[i] is the step that cells[i] carried out
     finding: Finding | None = None
     try:
@@ -235,7 +234,7 @@ def _attach_files(ctx: RunContext, h: Hypothesis, finding: Finding, cells: list[
     figs = {c.index: c.figure_paths for c in cells if c.figure_paths}
     pick = figs.get(figure_cell) or (list(figs.values())[-1] if figs else [])
     finding.figure_path = pick[0] if pick else None
-    finding.notebook_path = str(ctx.project_dir / "hypotheses" / h.id / f"{h.id}.ipynb")
+    finding.notebook_path = str(ctx.project_dir / "hypotheses" / h.id / f"{results.slug(h.title)}.ipynb")
 
 
 async def _demo() -> None:
@@ -258,7 +257,7 @@ async def _demo() -> None:
                   celltype_column="cell.type.coarse", gene_id_format="symbol",
                   goals="Characterize how the innate immune response in blood differs between "
                         "hospitalized COVID-19 patients and healthy donors.")
-    ctx = RunContext.load("covid-demo", "/home/ubuntu/workspace/data/covid_pbmc", brief)
+    ctx = RunContext.load("covid-demo", "/home/ubuntu/workspace/data/_reference/covid_pbmc", brief)
     start = time.perf_counter()
     [h] = await plan_hypotheses(ctx, n=1, background=(
         "Severe viral infections typically induce type I interferon signaling in monocytes."))

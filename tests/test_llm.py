@@ -100,3 +100,50 @@ async def _client_in_new_loop():
 async def test_no_tools_or_schema_sends_neither(client, events):
     await llm.chat("a", [], project_id="p")
     assert "tools" not in client.sent[0] and "response_format" not in client.sent[0]
+
+
+# --- chat_json: structured replies with retries ---
+
+class Verdict(BaseModel):
+    verdict: str
+
+
+def fake_chat(outputs):
+    calls = []
+
+    async def chat(agent, messages, **kwargs):
+        from shared.schemas import LLMCall
+        call = LLMCall(project_id="p", agent=agent, messages=messages, output=outputs[len(calls)],
+                       parent_call_id=kwargs.get("parent_call_id"), tokens_out=7)
+        calls.append({"kwargs": kwargs, "call": call})
+        return call
+    return chat, calls
+
+
+async def test_chat_json_parses_valid_json():
+    chat, calls = fake_chat(['{"verdict": "approve"}'])
+    call, parsed = await llm.chat_json("critic", [], Verdict, chat_fn=chat, project_id="p")
+    assert parsed.verdict == "approve" and len(calls) == 1
+    assert calls[0]["kwargs"]["schema"] is Verdict and calls[0]["kwargs"]["max_tokens"] == llm.JSON_MAX_TOKENS
+
+
+async def test_chat_json_retries_a_runaway_whitespace_reply():
+    """Tonight's failure: thousands of blank lines, then the token limit cut the JSON off."""
+    runaway = '{\n  "verdict": "app' + "\n  " * 3000
+    chat, calls = fake_chat([runaway, '{"verdict": "approve"}'])
+    call, parsed = await llm.chat_json("intake", [], Verdict, chat_fn=chat, project_id="p")
+    assert parsed.verdict == "approve" and len(calls) == 2
+    assert calls[1]["kwargs"]["parent_call_id"] == calls[0]["call"].id  # retry linked in the trace
+
+
+async def test_chat_json_gives_up_after_the_last_attempt():
+    chat, calls = fake_chat(["not json"] * 5)
+    with pytest.raises(llm.StructuredOutputError, match="no valid Verdict after 3 attempts"):
+        await llm.chat_json("critic", [], Verdict, chat_fn=chat, project_id="p")
+    assert len(calls) == 3
+
+
+async def test_chat_json_respects_explicit_max_tokens_and_parent():
+    chat, calls = fake_chat(['{"verdict": "x"}'])
+    await llm.chat_json("a", [], Verdict, chat_fn=chat, project_id="p", max_tokens=100, parent_call_id="root")
+    assert calls[0]["kwargs"]["max_tokens"] == 100 and calls[0]["kwargs"]["parent_call_id"] == "root"

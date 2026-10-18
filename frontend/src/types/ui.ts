@@ -68,6 +68,18 @@ export interface FindingCard {
   notebook_url?: string | null;
 }
 
+/** What a project is about, for the top of its page (from project_state.json). */
+export interface ProjectOverview {
+  goal: string | null;
+  organism: string | null;
+  n_cells: number | null;
+  n_donors: number | null;
+  /** Cells per condition label, e.g. {"COVID-19": 28023, "normal": 16626}. */
+  conditions: Record<string, number> | null;
+  /** The opening paragraph of the final report, when there is one. */
+  summary: string | null;
+}
+
 export type RunStatus = "idle" | "running" | "done" | "stopped" | "failed";
 
 /** A project's run, as tracked by the backend. */

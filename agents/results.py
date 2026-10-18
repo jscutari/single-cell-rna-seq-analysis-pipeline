@@ -46,6 +46,22 @@ _KIND = {"pdf": "pdf", "csv": "csv", "tsv": "tsv", "png": "image", "jpg": "image
 
 # --- per-hypothesis record ---
 
+_STOPWORDS = {"the", "a", "an", "is", "are", "in", "of", "from", "than", "to", "and", "vs", "versus",
+              "with", "for", "on", "by", "at", "that", "between", "compared", "relative"}
+
+
+def slug(title: str, max_len: int = 60) -> str:
+    """A readable file name from a hypothesis title:
+    'The Hallmark IFN-alpha response is higher in CD14 monocytes' -> 'hallmark_ifn_alpha_response_higher_cd14_monocytes'."""
+    words = [w for w in "".join(c if c.isalnum() else " " for c in title.lower()).split() if w not in _STOPWORDS]
+    out = ""
+    for w in words:
+        if len(out) + len(w) + 1 > max_len:
+            break
+        out = f"{out}_{w}" if out else w
+    return out or "analysis"
+
+
 def save_analysis(project_dir: Path, h: Hypothesis, steps: list[tuple[str, CodeCell, str]],
                   finding: Finding | None) -> dict:
     """Write hypotheses/<id>/analysis.json: each step's code, output, figures and interpretation."""
@@ -150,14 +166,28 @@ def list_files(project_dir: Path, project_id: str, summary: dict | None, brief: 
     add(root / "background.md", "Literature background")
     add(root / "report.md", "Final report")
     for hdir in sorted((root / "hypotheses").glob("*")):
-        title = titles.get(hdir.name, hdir.name)
-        add(hdir / f"{hdir.name}.ipynb", f"Notebook: {title}")
+        if hdir.name not in titles:  # only this project's hypotheses, not leftovers from tests
+            continue
+        title = titles[hdir.name]
+        for nb in sorted(hdir.glob("*.ipynb")):
+            add(nb, f"Notebook: {title}")
         for fig in sorted((hdir / "figures").glob("*.png")):
             add(fig, f"Figure (cell {int(fig.stem[4:7])}): {title}" if fig.stem.startswith("cell") else title)
         for csv in sorted((hdir / "tables").glob("*.csv")):
             what = "Differential expression (DESeq2)" if csv.name.startswith("de_") else "Donor-level scores"
             add(csv, f"{what}: {title}")
     return out
+
+
+def _dataset_facts(root: Path, summary: dict, brief: Brief | None) -> dict:
+    """Numbers for the project overview: size, donors, cells per condition, and the UMAP chart."""
+    cols = summary.get("obs_columns", {})
+    donors = cols.get(brief.donor_column) if brief and brief.donor_column else None
+    condition = cols.get(brief.condition_column) if brief and brief.condition_column else None
+    return {"n_cells": summary["n_cells"], "n_genes": summary["n_genes"],
+            "n_donors": donors["n_unique"] if donors else None,
+            "conditions": condition.get("counts") if condition else None,
+            "chart": umap_chart(root, brief.celltype_column if brief else None)}
 
 
 def _dataset_line(summary: dict | None, brief: Brief | None) -> str | None:
@@ -190,8 +220,7 @@ def write_state(project_dir: Path, project_id: str, stage: str, brief: Brief | N
     state = {
         "project_id": project_id, "stage": stage, "updated_at": datetime.now(timezone.utc).isoformat(),
         "brief": brief.model_dump(mode="json") if brief else None,
-        "dataset": {"n_cells": summary["n_cells"], "n_genes": summary["n_genes"],
-                    "chart": umap_chart(root, brief.celltype_column if brief else None)} if summary else None,
+        "dataset": _dataset_facts(root, summary, brief) if summary else None,
         "background": background, "sources_searched": sources,
         "hypotheses": entries, "findings": findings, "report": report,
         "files": list_files(root, project_id, summary, brief, {h.id: h.title for h in hypotheses}),

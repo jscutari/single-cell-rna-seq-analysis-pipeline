@@ -26,7 +26,8 @@ class FakeKernel:
         self.started, self.stopped = [], []
         self.index = 0
 
-    async def start_kernel(self, hid, project_id, project_dir):
+    async def start_kernel(self, hid, project_id, project_dir, notebook_name=None):
+        self.notebook_names = getattr(self, "notebook_names", []) + [notebook_name]
         self.started.append(hid)
 
     async def stop_kernel(self, hid):
@@ -88,7 +89,8 @@ async def test_approved_finding_end_to_end(setup):
     setup.llm.reply("finding", draft()).reply("critic", review())
     f = await hyp.run_hypothesis(setup.ctx, setup.h)
     assert f.critic_verdict == "approve" and f.p_adj == 0.01 and f.effect_size == 1.7
-    assert f.notebook_path == str(Path(setup.ctx.project_dir) / "hypotheses" / setup.h.id / f"{setup.h.id}.ipynb")
+    assert f.notebook_path == str(Path(setup.ctx.project_dir) / "hypotheses" / setup.h.id / "ifn_up.ipynb")
+    assert setup.kernel.notebook_names == ["ifn_up"]  # notebooks are named after the hypothesis
     assert statuses(setup.events) == ["coding", "running", "coding", "running", "critiquing", "approved"]
     assert [e.type for e in setup.events].count("finding") == 1
     assert setup.kernel.started == setup.kernel.stopped == [setup.h.id]
@@ -311,4 +313,4 @@ async def test_critic_off_findings_get_files_too(setup):
     setup.kernel.figures = {1: ["/f/cell1.png"]}
     setup.llm.reply("finding", draft())
     f = await hyp.run_hypothesis(setup.ctx, setup.h, critic=False)
-    assert f.figure_path == "/f/cell1.png" and f.notebook_path.endswith(f"{setup.h.id}.ipynb")
+    assert f.figure_path == "/f/cell1.png" and f.notebook_path.endswith("ifn_up.ipynb")

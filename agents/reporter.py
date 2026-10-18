@@ -21,7 +21,8 @@ def _results(background: str, hypotheses: list[Hypothesis], findings: list[Findi
 
 async def report(project_id: str, prefix: str, background: str,
                  hypotheses: list[Hypothesis], findings: list[Finding]) -> str:
-    user = (_results(background, hypotheses, findings) + "\n\nWrite the final report in Markdown: a two-sentence "
+    user = (_results(background, hypotheses, findings) + "\n\nWrite the final report in Markdown, starting directly "
+            "with the report (no preamble such as 'Here is the report'): a two-sentence "
             "summary, then one short section per approved finding (result with numbers, novelty, what it means), "
             "then one line per rejected or failed hypothesis with the reason.")
     call = await chat("reporter", prompting.messages(prefix, "reporter", user),

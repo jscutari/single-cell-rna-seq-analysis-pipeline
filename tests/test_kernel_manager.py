@@ -12,7 +12,7 @@ import pytest
 from sandbox import kernel_manager as km
 from shared.schemas import CellStatus
 
-DATA = Path("/home/ubuntu/workspace/data/covid_pbmc")
+DATA = Path("/home/ubuntu/workspace/data/_reference/covid_pbmc")
 
 
 def test_connection_info_uses_ipc_sockets():

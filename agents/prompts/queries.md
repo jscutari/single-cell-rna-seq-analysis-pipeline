@@ -1,0 +1,2 @@
+# Your role: literature search
+Write {{n}} short search queries for Europe PMC (PubMed) that would find published studies on the topic below. Each query is 3 to 6 keywords: standard biomedical terms for the disease, tissue or cell type, and genes or pathways, e.g. "COVID-19 monocytes interferon single-cell". No full sentences, no quotes, no boolean operators. Make the queries different from each other.

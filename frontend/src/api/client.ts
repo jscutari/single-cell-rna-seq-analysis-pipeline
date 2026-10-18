@@ -10,10 +10,11 @@
 //   GET  /api/projects/{id}/files | /findings  -> ProjectFile[] | FindingCard[] (from project_state.json)
 //   GET  /api/projects/{id}/events?after=N     -> SSE stream of events
 import { mockProjects } from "../data/mockProjects";
-import { mockChatsFor, mockFilesFor, mockFindingsFor } from "../data/mockWorkspace";
+import { mockChatsFor, mockFilesFor, mockFindingsFor, mockOverviewFor } from "../data/mockWorkspace";
+import { toOverview, type ResultsState } from "../lib/overview";
 import { newId } from "../lib/ids";
 import type { ChatMessage, ProjectSummary } from "../types/schemas";
-import type { Chat, FindingCard, ProjectFile, RunInfo, RunStatus } from "../types/ui";
+import type { Chat, FindingCard, ProjectFile, RunInfo, RunStatus, ProjectOverview } from "../types/ui";
 import { publishMockEvent } from "./mockEvents";
 
 /** Mock data unless started with VITE_USE_MOCK=false. */
@@ -112,6 +113,13 @@ export async function listFiles(projectId: string): Promise<ProjectFile[]> {
 
 export async function listFindings(projectId: string): Promise<FindingCard[]> {
   return USE_MOCK ? mockFindingsFor(projectId) : request(`/projects/${projectId}/findings`);
+}
+
+/** What the project is: goal, data, and the report's summary (null until there is any). */
+export async function getOverview(projectId: string): Promise<ProjectOverview | null> {
+  if (USE_MOCK) return mockOverviewFor(projectId);
+  const state = await request<{ results: ResultsState | null }>(`/projects/${projectId}/state`);
+  return toOverview(state.results);
 }
 
 export async function startRun(projectId: string): Promise<RunStatus> {

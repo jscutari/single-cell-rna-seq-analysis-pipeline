@@ -31,15 +31,28 @@ def _save_table(kind: str, df: pd.DataFrame, meta: dict) -> None:
     except OSError:
         pass
 
-__all__ = ["pseudobulk", "deseq", "donor_scores", "compare_groups", "load_geneset",
+__all__ = ["pseudobulk", "deseq", "donor_scores", "compare_groups", "plot_groups", "load_geneset",
            "list_genesets", "multipletests"]
+
+
+def _find_celltype_column(adata, cts):
+    """The obs column holding these labels, when the caller gave a cell type but no column."""
+    for col in adata.obs.columns:
+        if adata.obs[col].dtype.name in ("category", "object", "string") and set(cts) <= set(adata.obs[col].astype(str).unique()):
+            return col
+    raise KeyError(f"No obs column contains {cts}; pass celltype_col=... with one of the dataset's cell-type columns")
 
 
 def _subset(adata, celltype_col, celltype):
     if celltype is None:
         return adata
     cts = [celltype] if isinstance(celltype, str) else list(celltype)
-    return adata[adata.obs[celltype_col].isin(cts)]
+    celltype_col = celltype_col or _find_celltype_column(adata, cts)
+    sub = adata[adata.obs[celltype_col].isin(cts)]
+    if sub.n_obs == 0:
+        known = sorted(adata.obs[celltype_col].astype(str).unique())[:30]
+        raise KeyError(f"No cells with {celltype_col} in {cts}. Values include: {known}")
+    return sub
 
 
 def pseudobulk(adata, donor_col, condition_col, celltype_col=None, celltype=None, min_cells=10):
@@ -135,16 +148,54 @@ def compare_groups(df, value_col, case, control, group_col="condition"):
     return out
 
 
+def plot_groups(df, value_col="score", group_col="condition", title=None):
+    """Donor-level box plot with one dot per donor; prints the values it shows."""
+    import matplotlib.pyplot as plt
+    groups = list(dict.fromkeys(df[group_col].astype(str)))
+    data = [df.loc[df[group_col].astype(str) == g, value_col].astype(float).values for g in groups]
+    fig, ax = plt.subplots(figsize=(4.5, 3.5))
+    ax.boxplot(data, tick_labels=groups, showfliers=False)
+    for i, values in enumerate(data, 1):
+        ax.scatter(np.full(len(values), i) + np.linspace(-.08, .08, len(values)), values, s=18, zorder=3)
+    ax.set_ylabel(value_col)
+    if title:
+        ax.set_title(title)
+    plt.show()
+    print(df.sort_values([group_col, value_col])[[group_col, value_col]].to_string())
+
+
 def list_genesets(library, contains=""):
     """Term names in a GMT library (MSigDB_Hallmark_2020, GO_Biological_Process_2023, Reactome_2022, KEGG_2021_Human)."""
     terms = [line.split("\t", 1)[0] for line in (GENESETS_DIR / f"{library}.gmt").read_text().splitlines()]
     return [t for t in terms if contains.lower() in t.lower()]
 
 
+def _norm(name):
+    """'HALLMARK_INTERFERON_ALPHA_RESPONSE' and 'Interferon Alpha Response' compare equal."""
+    name = name.lower().replace("_", " ").replace("-", " ")
+    for prefix in ("hallmark ", "kegg ", "reactome ", "gobp ", "go "):
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+    return " ".join(name.split())
+
+
 def load_geneset(library, term):
-    """Genes in one term, e.g. load_geneset('MSigDB_Hallmark_2020', 'Interferon Alpha Response')."""
+    """Genes in one term, e.g. load_geneset('MSigDB_Hallmark_2020', 'Interferon Alpha Response').
+
+    Accepts MSigDB-style names too ('HALLMARK_INTERFERON_ALPHA_RESPONSE'), any case, and a
+    unique partial name; prints which term it used.
+    """
+    sets = {}
     for line in (GENESETS_DIR / f"{library}.gmt").read_text().splitlines():
         name, _, *genes = line.split("\t")
-        if name == term:
-            return [g for g in genes if g]
-    raise KeyError(f"{term!r} not in {library}; try list_genesets({library!r}, contains=...)")
+        sets[name] = [g for g in genes if g]
+    if term in sets:
+        return sets[term]
+    exact = [n for n in sets if _norm(n) == _norm(term)]
+    partial = [n for n in sets if _norm(term) in _norm(n)]
+    match = exact or (partial if len(partial) == 1 else [])
+    if match:
+        print(f"load_geneset: using {match[0]!r}")
+        return sets[match[0]]
+    hint = f" Close matches: {partial[:8]}" if partial else ""
+    raise KeyError(f"{term!r} not in {library}.{hint} Try list_genesets({library!r}, contains=...)")

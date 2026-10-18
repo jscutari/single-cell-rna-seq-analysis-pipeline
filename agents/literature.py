@@ -23,10 +23,10 @@ from typing import Literal
 
 import httpx
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agents import prompting
-from agents.llm import chat
+from agents.llm import chat, chat_json
 from shared.schemas import Finding, Novelty
 
 EMBED_MODEL = "nvidia/Nemotron-3-Embed-1B-BF16"
@@ -34,6 +34,7 @@ RERANK_MODEL = "nvidia/llama-nemotron-rerank-1b-v2"
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 CHUNK_CHARS = 1200
 CANDIDATES = 30  # from the embedding search, before reranking
+ABSTRACTS_PER_QUERY = 8
 log = logging.getLogger("scrap.literature")
 
 
@@ -171,22 +172,66 @@ class Index:
 
 # --- Europe PMC (optional online search) ---
 
-async def europe_pmc(query: str, n: int = 10) -> list[Chunk]:
-    """Titles and abstracts from Europe PMC as chunks. One GET, no API key."""
+async def europe_pmc(query: str, n: int = 10, sort: str | None = None) -> list[Chunk]:
+    """Titles and abstracts from Europe PMC as chunks. One GET, no API key.
+
+    sort=None ranks by relevance (favours recent papers); "CITED desc" surfaces landmark papers.
+    """
+    params = {"query": f"({query}) AND HAS_ABSTRACT:y", "format": "json", "resultType": "core", "pageSize": n}
+    if sort:
+        params["sort"] = sort
     async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.get(EUROPE_PMC, params={"query": f"({query}) AND HAS_ABSTRACT:y", "format": "json",
-                                                 "resultType": "core", "pageSize": n})
+        r = await client.get(EUROPE_PMC, params=params)
         r.raise_for_status()
     out = []
     for hit in r.json().get("resultList", {}).get("result", []):
         if hit.get("pmid") and hit.get("abstractText"):
             abstract = re.sub(r"<[^>]+>", "", hit["abstractText"])
-            out.append(Chunk(f"PMID:{hit['pmid']}", hit.get("title", ""), None,
+            author = (hit.get("authorString") or "").split(",")[0].strip()
+            label = f"{author} et al. {hit.get('pubYear', '')}".strip() if author else hit.get("title", "")
+            out.append(Chunk(f"PMID:{hit['pmid']}", label, None,
                              f"{hit.get('title', '')} ({hit.get('pubYear', '')}). {abstract}"))
     return out
 
 
 # --- agents ---
+
+class Queries(BaseModel):
+    queries: list[str] = Field(min_length=1, max_length=3)
+
+
+_index_locks: dict[Path, asyncio.Lock] = {}
+
+
+def _index_lock(project_dir: Path) -> asyncio.Lock:
+    """Hypotheses check novelty in parallel; one writer at a time per project index."""
+    return _index_locks.setdefault(Path(project_dir).resolve(), asyncio.Lock())
+
+
+async def search_queries(project_id: str, prefix: str, topic: str, n: int = 3,
+                         hypothesis_id: str | None = None) -> list[str]:
+    """Short keyword queries for Europe PMC; a full sentence matches almost nothing there."""
+    _, parsed = await chat_json("literature", prompting.messages(prefix, "queries", f"Topic: {topic}", n=n), Queries,
+                                chat_fn=chat, project_id=project_id, hypothesis_id=hypothesis_id,
+                                reasoning=False, max_tokens=400)
+    return [q.strip() for q in parsed.queries if q.strip()][:n]
+
+
+async def add_online(index: "Index", queries: list[str]) -> list[str]:
+    """Europe PMC abstracts for each query, new ones only. Returns the PMIDs added."""
+    found: dict[str, Chunk] = {}
+    for q in queries:
+        # Half by relevance (recent work), half by citations (the landmark papers).
+        for sort in (None, "CITED desc"):
+            try:
+                for c in await europe_pmc(q, n=ABSTRACTS_PER_QUERY // 2, sort=sort):
+                    found.setdefault(c.source_id, c)
+            except httpx.HTTPError as error:
+                log.warning("Europe PMC search %r (%s) failed: %s", q, sort or "relevance", error)
+    known = set(index.source_ids)
+    new = [c for sid, c in found.items() if sid not in known]
+    await index.add(new)
+    return [c.source_id for c in new]
 
 def _passages(hits: list[tuple[Chunk, float]]) -> str:
     return "\n\n".join(f"[{c.cite()}] {c.title}\n{c.text}" for c, _ in hits) or "(no passages found)"
@@ -195,13 +240,15 @@ def _passages(hits: list[tuple[Chunk, float]]) -> str:
 async def background(project_id: str, project_dir: Path, prefix: str, goals: str,
                      online: bool = False) -> tuple[str, list[str]]:
     """Cited background summary for the planner. Returns (text, source ids searched)."""
-    index = Index(project_dir)
-    await index.add_new_pdfs(project_dir / "sources")
-    if online:
-        known = set(index.source_ids)
-        await index.add([c for c in await europe_pmc(goals) if c.source_id not in known])
+    queries = await search_queries(project_id, prefix, goals) if online else []
+    async with _index_lock(project_dir):
+        index = Index(project_dir)
+        await index.add_new_pdfs(project_dir / "sources")
+        if queries:
+            await add_online(index, queries)
     hits: dict[str, tuple[Chunk, float]] = {}
-    for query in [goals] + [s.strip() for s in re.split(r"(?<=[.?!])\s+", goals) if len(s) > 20][:3]:
+    sentences = [s.strip() for s in re.split(r"(?<=[.?!])\s+", goals) if len(s) > 20][:3]
+    for query in [goals] + sentences + queries:
         for c, s in await index.search(query, k=5):
             hits.setdefault(c.cite(), (c, s))
     if not hits:
@@ -225,10 +272,12 @@ class Grades(BaseModel):
 async def novelty(project_id: str, project_dir: Path, prefix: str, finding: Finding,
                   online: bool = False) -> None:
     """Set finding.novelty, citations and sources_searched in place."""
-    index = Index(project_dir)
-    if online:
-        known = set(index.source_ids)
-        await index.add([c for c in await europe_pmc(finding.claim, n=8) if c.source_id not in known])
+    queries = (await search_queries(project_id, prefix, finding.claim, n=2, hypothesis_id=finding.hypothesis_id)
+               if online else [])
+    async with _index_lock(project_dir):
+        index = Index(project_dir)
+        if queries:
+            await add_online(index, queries)
     if not index.chunks:  # nothing to search: "not checked" is not "not found"
         return
     hits = await index.search(finding.claim, k=6)
@@ -236,12 +285,17 @@ async def novelty(project_id: str, project_dir: Path, prefix: str, finding: Find
     if not hits:
         finding.novelty = Novelty.not_found_in_sources
         return
-    call = await chat("novelty", prompting.messages(
+    _, parsed = await chat_json("novelty", prompting.messages(
         prefix, "novelty", f"Finding: {finding.claim}\n\nPassages:\n{_passages(hits)}\n\nGrade each passage."),
-        project_id=project_id, hypothesis_id=finding.hypothesis_id, schema=Grades)
-    grades = Grades.model_validate_json(call.output).grades
-    same = [g.citation for g in grades if g.relation == "same_claim"]
-    related = [g.citation for g in grades if g.relation in ("related", "contradicts")]
+        Grades, chat_fn=chat, project_id=project_id, hypothesis_id=finding.hypothesis_id)
+    grades = parsed.grades
+    cites = [c.cite() for c, _ in hits]
+
+    def source(citation: str) -> str:
+        """The model may copy '[PMID:1] Author et al.'; keep only the passage's own citation."""
+        return next((c for c in cites if c in citation), citation.strip("[] "))
+    same = list(dict.fromkeys(source(g.citation) for g in grades if g.relation == "same_claim"))
+    related = list(dict.fromkeys(source(g.citation) for g in grades if g.relation in ("related", "contradicts")))
     finding.novelty = (Novelty.known if same else Novelty.partly_known if related
                        else Novelty.not_found_in_sources)
     finding.citations = same or related
@@ -252,7 +306,7 @@ async def _demo() -> None:
     import time
 
     # Publishers block scripted downloads; save the PDF from a browser and copy it here.
-    project_dir = Path("/home/ubuntu/workspace/data/covid_pbmc")
+    project_dir = Path("/home/ubuntu/workspace/data/_reference/covid_pbmc")
     pdf = project_dir / "sources" / "wilk2020.pdf"
     t = time.perf_counter()
     index = Index(project_dir)

@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   listMessages: vi.fn(),
   listFiles: vi.fn(),
   listFindings: vi.fn(),
+  getOverview: vi.fn(),
   sendMessage: vi.fn(),
   startRun: vi.fn(),
   stopRun: vi.fn(),
@@ -98,6 +99,7 @@ beforeEach(() => {
   });
   api.listFiles.mockResolvedValue([]);
   api.listFindings.mockResolvedValue([]);
+  api.getOverview.mockResolvedValue(null);
   api.sendMessage.mockResolvedValue(undefined);
   api.startRun.mockResolvedValue("running");
   api.stopRun.mockResolvedValue("stopped");

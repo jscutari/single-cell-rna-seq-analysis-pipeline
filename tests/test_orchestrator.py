@@ -152,6 +152,37 @@ async def test_state_write_failure_never_breaks_the_run(env, monkeypatch):
     assert orch._runs["p1"].stage == "done"
 
 
+async def test_first_message_that_starts_the_run_gets_one_reply(env):
+    """The backend calls start_run and then handle_user_message for a project's first message."""
+    env.intake_turns = [turn(False, "Hello! What are your goals?"), turn(False, "unexpected second reply")]
+    await orch.start_run("p1")
+    await orch.handle_user_message("p1", "Hi, analyze this dataset.")
+    await wait_for(env.events, lambda e: e.type == "chat_reply")
+    await asyncio.sleep(0.1)
+    replies = [e.payload["content"] for e in env.events if e.type == "chat_reply"]
+    assert replies == ["Hello! What are your goals?"]
+    assert env.intake_histories == [["Hi, analyze this dataset."]]
+
+
+async def test_a_failed_intake_turn_apologises_and_keeps_the_run(env, monkeypatch):
+    calls = {"n": 0}
+
+    async def flaky_turn(project_id, summary_, brief, history):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("no valid IntakeTurn after 3 attempts")
+        return turn(calls["n"] == 3, f"reply {calls['n']}")
+    monkeypatch.setattr(intake, "turn", flaky_turn)
+    await orch.start_run("p1")
+    await wait_for(env.events, lambda e: e.type == "chat_reply")
+    await orch.handle_user_message("p1", "Monocytes please.")
+    apology = await wait_for(env.events, lambda e: e.type == "chat_reply" and "say that again" in e.payload["content"])
+    assert apology and orch._runs["p1"].stage == "intake" and "failed" not in stages(env.events)
+    await orch.handle_user_message("p1", "Monocytes in COVID vs healthy, please start.")
+    await wait_for(env.events, stage("report"))
+    assert orch._runs["p1"].stage == "done"
+
+
 async def test_start_run_is_idempotent(env):
     env.intake_turns = [turn(False)]
     await orch.start_run("p1")
@@ -174,6 +205,13 @@ async def test_intake_ready_but_invalid_brief_keeps_chatting(env):
                    and len([x for x in env.events if x.type == "chat_reply"]) == 2)
     await asyncio.sleep(0.05)
     assert orch._runs["p1"].stage == "intake" and "intake" not in stages(env.events)
+
+
+async def test_online_search_is_on_by_default(env):
+    env.intake_turns = [turn(False)]
+    await orch.start_run("p1")
+    await wait_for(env.events, lambda e: e.type == "chat_reply")
+    assert orch._runs["p1"].brief.online_search is True
 
 
 async def test_online_search_flag_survives_intake(env):

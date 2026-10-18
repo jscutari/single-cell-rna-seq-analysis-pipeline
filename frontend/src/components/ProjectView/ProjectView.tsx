@@ -1,7 +1,8 @@
 import { formatBytes, formatP } from "../../lib/format";
 import { relativeTime } from "../../lib/relativeTime";
 import type { ProjectSummary } from "../../types/schemas";
-import type { FindingCard, ProjectFile, RunInfo } from "../../types/ui";
+import { datasetLine } from "../../lib/overview";
+import type { FindingCard, ProjectFile, ProjectOverview, RunInfo } from "../../types/ui";
 import { FindingChart } from "../Charts/FindingChart";
 import { useRef } from "react";
 import { FileIcon, PlusIcon, UploadIcon } from "../icons/Icons";
@@ -21,6 +22,8 @@ interface ProjectViewProps {
   onStartRun?: () => void;
   onStopRun?: () => void;
   onNewChat?: () => void;
+  /** What the project is about; omitted until a brief or report exists. */
+  overview?: ProjectOverview | null;
 }
 
 const RUN_LABEL: Record<RunInfo["status"], string> = {
@@ -67,8 +70,12 @@ export function ProjectView({
   runError,
   onStartRun,
   onStopRun,
+  overview,
 }: ProjectViewProps) {
   const fileInput = useRef<HTMLInputElement>(null);
+  // Key findings are the ones the critic approved; the rest are listed briefly below them.
+  const keyFindings = findings.filter((c) => c.finding.critic_verdict === "approve" || c.mock);
+  const otherFindings = findings.filter((c) => !keyFindings.includes(c));
   return (
     <div className="project-page">
       <header className="project-page-header">
@@ -98,6 +105,115 @@ export function ProjectView({
           )}
         </div>
       )}
+
+      {overview && (
+        <section className="project-section" aria-labelledby="overview-heading">
+          <div className="project-section-head">
+            <h2 id="overview-heading" className="project-section-title">
+              Overview
+            </h2>
+          </div>
+          <div className="overview-card">
+            {overview.goal && (
+              <p className="overview-row">
+                <span className="overview-label">Question</span>
+                <span className="overview-goal">{overview.goal}</span>
+              </p>
+            )}
+            {datasetLine(overview) && (
+              <p className="overview-row">
+                <span className="overview-label">Data</span>
+                <span>{datasetLine(overview)}</span>
+              </p>
+            )}
+            {overview.summary && (
+              <p className="overview-row">
+                <span className="overview-label">Summary</span>
+                <span>{overview.summary}</span>
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      <section className="project-section" aria-labelledby="findings-heading">
+        <div className="project-section-head">
+          <h2 id="findings-heading" className="project-section-title">
+            Key findings
+          </h2>
+        </div>
+        {keyFindings.length ? (
+          <div className="finding-grid">
+            {keyFindings.map(({ finding, chart, mock, hypothesis_title, figure_url, notebook_url }) => (
+              <article key={finding.id} className="finding-card" aria-label={finding.claim}>
+                {mock && <span className="finding-mock">sample data</span>}
+                {chart ? (
+                  <FindingChart chart={chart} />
+                ) : figure_url ? (
+                  <img className="finding-figure" src={figure_url} alt={`Figure for: ${finding.claim}`} />
+                ) : (
+                  <p className="finding-nochart">No chart for this finding</p>
+                )}
+                {hypothesis_title && (
+                  <p className="finding-hypothesis" title={hypothesis_title}>
+                    {hypothesis_title}
+                  </p>
+                )}
+                <h3 className="finding-claim" title={finding.claim}>
+                  {finding.claim}
+                </h3>
+                <ul className="finding-chips" aria-label="Statistics">
+                  <li className="chip chip--test" title={finding.test}>
+                    {finding.test}
+                  </li>
+                  {finding.p_adj !== null && <li className="chip">p_adj {formatP(finding.p_adj)}</li>}
+                  {finding.effect_size !== null && <li className="chip">effect {finding.effect_size.toFixed(1)}</li>}
+                  {finding.critic_verdict && (
+                    <li className={`chip chip--${finding.critic_verdict}`}>{VERDICT_LABEL[finding.critic_verdict]}</li>
+                  )}
+                  {finding.novelty && <li className="chip chip--novelty">{NOVELTY_LABEL[finding.novelty]}</li>}
+                </ul>
+                {(notebook_url || (chart && figure_url)) && (
+                  <p className="finding-links">
+                    {chart && figure_url && (
+                      <a href={figure_url} target="_blank" rel="noreferrer">
+                        Figure
+                      </a>
+                    )}
+                    {notebook_url && (
+                      <a href={notebook_url} target="_blank" rel="noreferrer">
+                        Notebook
+                      </a>
+                    )}
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="project-empty">
+            {otherFindings.length
+              ? "No hypothesis has been supported yet."
+              : "No findings yet. They appear here as the analysis runs."}
+          </p>
+        )}
+        {otherFindings.length > 0 && (
+          <div className="also-tested">
+            <h3 className="also-tested-title">Also tested, not supported</h3>
+            <ul className="also-tested-list">
+              {otherFindings.map(({ finding, hypothesis_title }) => (
+                <li key={finding.id} title={finding.critic_notes || undefined}>
+                  <span className={`chip chip--${finding.critic_verdict ?? "reject"}`}>
+                    {finding.critic_verdict ? VERDICT_LABEL[finding.critic_verdict] : "Not reviewed"}
+                  </span>
+                  <span className="also-tested-claim">{hypothesis_title || finding.claim}</span>
+                  {finding.p_adj !== null && <span className="also-tested-p">p_adj {formatP(finding.p_adj)}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
 
       <section className="project-section" aria-labelledby="files-heading">
         <div className="project-section-head">
@@ -160,57 +276,6 @@ export function ProjectView({
           </ul>
         ) : (
           <p className="project-empty">Upload a dataset or paper to get started.</p>
-        )}
-      </section>
-
-      <section className="project-section" aria-labelledby="findings-heading">
-        <div className="project-section-head">
-          <h2 id="findings-heading" className="project-section-title">
-            Key findings
-          </h2>
-        </div>
-        {findings.length ? (
-          <div className="finding-grid">
-            {findings.map(({ finding, chart, mock, hypothesis_title, figure_url, notebook_url }) => (
-              <article key={finding.id} className="finding-card" aria-label={finding.claim}>
-                {mock && <span className="finding-mock">sample data</span>}
-                {chart ? (
-                  <FindingChart chart={chart} />
-                ) : figure_url ? (
-                  <img className="finding-figure" src={figure_url} alt={`Figure for: ${finding.claim}`} />
-                ) : (
-                  <p className="finding-nochart">No chart for this finding</p>
-                )}
-                {hypothesis_title && <p className="finding-hypothesis">{hypothesis_title}</p>}
-                <h3 className="finding-claim">{finding.claim}</h3>
-                <ul className="finding-chips" aria-label="Statistics">
-                  <li className="chip">{finding.test}</li>
-                  {finding.p_adj !== null && <li className="chip">p_adj {formatP(finding.p_adj)}</li>}
-                  {finding.effect_size !== null && <li className="chip">effect {finding.effect_size.toFixed(1)}</li>}
-                  {finding.critic_verdict && (
-                    <li className={`chip chip--${finding.critic_verdict}`}>{VERDICT_LABEL[finding.critic_verdict]}</li>
-                  )}
-                  {finding.novelty && <li className="chip chip--novelty">{NOVELTY_LABEL[finding.novelty]}</li>}
-                </ul>
-                {(notebook_url || (chart && figure_url)) && (
-                  <p className="finding-links">
-                    {chart && figure_url && (
-                      <a href={figure_url} target="_blank" rel="noreferrer">
-                        Figure
-                      </a>
-                    )}
-                    {notebook_url && (
-                      <a href={notebook_url} target="_blank" rel="noreferrer">
-                        Notebook
-                      </a>
-                    )}
-                  </p>
-                )}
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="project-empty">No findings yet. They appear here as the analysis runs.</p>
         )}
       </section>
     </div>
