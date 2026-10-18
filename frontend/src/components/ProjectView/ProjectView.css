@@ -126,3 +126,7 @@
 .finding-links { margin: 0; display: flex; gap: 14px; font-size: 13.5px; }
 .finding-links a { color: #3a68a8; }
 .run-error { color: #9c3f4a; }
+
+.project-actions { display: flex; align-items: center; gap: 10px; }
+.upload-button--secondary { background: #fbfaf6; color: #2f5d9a; border-color: #b9cfee; box-shadow: 0 1px 2px rgba(83, 77, 67, .08); }
+.upload-button--secondary:hover { background: var(--blue-pale); }

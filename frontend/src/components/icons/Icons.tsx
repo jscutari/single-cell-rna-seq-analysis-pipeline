@@ -96,3 +96,42 @@ export const CloseIcon = (p: IconProps) => (
     <path d="M6 6l12 12M18 6 6 18" />
   </Svg>
 );
+
+export const SidebarIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M9 4v16M5.5 8h1.5M5.5 11h1.5" />
+  </Svg>
+);
+
+export const PencilIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M15.2 5.2 18.8 8.8M4 20l1-4.2L16.4 4.4a1.8 1.8 0 0 1 2.6 0l.6.6a1.8 1.8 0 0 1 0 2.6L8.2 19z" />
+  </Svg>
+);
+
+export const ChevronLeftIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m15 6-6 6 6 6" />
+  </Svg>
+);
+
+export const FilesIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M15 3H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7z" />
+    <path d="M15 3v4h4M3 8v11a2 2 0 0 0 2 2h9" />
+  </Svg>
+);
+
+export const CodeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14" />
+  </Svg>
+);
+
+export const ChartIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 4v16h16" />
+    <path d="M8 16v-4M12 16V8M16 16v-6" />
+  </Svg>
+);

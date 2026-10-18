@@ -1,0 +1,19 @@
+/* Files panel next to the chat: grouped list, opens items in place. */
+.panel-group { display: flex; flex-direction: column; gap: 6px; }
+.panel-group + .panel-group { margin-top: 8px; }
+.panel-group-title {
+  margin: 0; display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 500; letter-spacing: .35px; text-transform: uppercase; color: var(--ink);
+}
+.panel-group-title .icon { width: 17px; height: 17px; color: #3a68a8; }
+.panel-group-count { margin-left: auto; font-size: 12px; color: var(--ink-soft); text-transform: none; }
+.panel-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.panel-row {
+  width: 100%; display: flex; flex-direction: column; gap: 1px; padding: 7px 10px; text-align: left; color: var(--ink);
+  background: #fdfcf9; border: 1px solid #ebe7dc; border-radius: 8px;
+}
+.panel-row:hover { border-color: #c9dbf3; background: var(--blue-pale); }
+.panel-row-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panel-row-detail { font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panel-chart { background: #fff; border: 1px solid #e6e2d8; border-radius: 6px; padding: 10px; }
+.panel-chart .chart { width: 100%; height: auto; }

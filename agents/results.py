@@ -41,7 +41,7 @@ PALETTE = ["#a4c7ed", "#e8adb1", "#c7d9a8", "#f2cf8f", "#c9b3e0", "#9ccfc9", "#9
 VOLCANO_POINTS = 2500
 VOLCANO_LABELS = 8
 _KIND = {"pdf": "pdf", "csv": "csv", "tsv": "tsv", "png": "image", "jpg": "image", "jpeg": "image",
-         "svg": "image", "txt": "text", "md": "text", "json": "text", "ipynb": "text", "h5ad": "h5ad"}
+         "svg": "image", "txt": "text", "md": "text", "json": "text", "ipynb": "notebook", "h5ad": "h5ad"}
 
 
 # --- per-hypothesis record ---

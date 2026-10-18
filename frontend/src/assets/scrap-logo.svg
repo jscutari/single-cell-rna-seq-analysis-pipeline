@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <title>SCRAP</title>
+  <!-- A torn scrap of lab-notebook paper, taped down, with a DNA double helix inked on it. -->
+  <defs>
+    <path id="scrap-paper-shape" d="M10.6 9.8 L53.4 7.6 L55.2 49.6 L52.4 51.4 L50.6 50 L47.4 52.8 L45.2 50.6 L41.6 53 L39.8 51.2 L36.6 53.8 L33.4 51.4 L31.2 53.2 L27.4 51.6 L24.6 54.2 L22.4 52 L18.6 54 L16.4 52.4 L13.4 54.6 L11.4 52.2 Z"/>
+    <clipPath id="scrap-paper-clip"><use href="#scrap-paper-shape" xlink:href="#scrap-paper-shape"/></clipPath>
+  </defs>
+
+  <g transform="rotate(-4 32 32)">
+    <!-- lift shadow, then the paper -->
+    <use href="#scrap-paper-shape" xlink:href="#scrap-paper-shape" transform="translate(1.6 2)" fill="#183763" opacity=".1"/>
+    <use href="#scrap-paper-shape" xlink:href="#scrap-paper-shape" fill="#fbfaf6"/>
+
+    <!-- ruled lines and the rose margin -->
+    <g clip-path="url(#scrap-paper-clip)">
+      <path d="M8 20.4 L58 18 M8 28.4 L58 26 M8 36.4 L58 34 M8 44.4 L58 42" stroke="#91b9ec" stroke-width=".9" opacity=".65"/>
+      <path d="M19.4 6 L21.4 58" stroke="#e8adb1" stroke-width="1.3"/>
+    </g>
+
+    <!-- DNA: one and a half turns, base pairs as pencil rungs, one blue strand and one ink strand -->
+    <path d="M29.4 19.4 H42.8 M29.3 29.6 H42.7 M29.3 34.4 H42.7 M29.4 44.6 H42.8" stroke="#8290aa" stroke-width="1.4"/>
+    <path d="M32.6 21.9 H39.4 M32.6 27 H39.4 M32.6 37 H39.4 M32.6 42.1 H39.4" stroke="#8290aa" stroke-width="1.2" opacity=".8"/>
+    <path d="M45 17 C45 23 27 26 27 32 C27 38 45 41 45 47" stroke="#6699e2" stroke-width="2.7"/>
+    <path d="M27 17 C27 23 45 26 45 32 C45 38 27 41 27 47" stroke="#183763" stroke-width="2.7"/>
+
+    <!-- torn outline in ink, with a lighter second pass along the cut edges -->
+    <use href="#scrap-paper-shape" xlink:href="#scrap-paper-shape" stroke="#183763" stroke-width="1.7"/>
+    <path d="M12 11.4 L52.2 9.3 M53.8 10.4 L55.3 47.6 M11.9 12.4 L12.6 50" stroke="#183763" stroke-width=".8" opacity=".28"/>
+
+    <!-- washi tape across the top -->
+    <path d="M24.2 4.2 L41.6 3.4 L42.6 5 L41.4 6.5 L42.8 8.1 L41.8 9.8 L42.9 11.4 L25.2 12.3 L24.4 10.7 L25.4 9.1 L24 7.5 L25.2 5.9 Z" fill="#c3d8ed" opacity=".92"/>
+    <path d="M26.6 5.6 L39.8 4.9 M27 10.6 L40.4 10" stroke="#ffffff" stroke-width=".8" opacity=".5"/>
+  </g>
+</svg>

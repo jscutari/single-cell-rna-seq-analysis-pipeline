@@ -157,7 +157,8 @@ describe("chat with the backend", () => {
     await renderApp();
     await openProject();
     const list = screen.getByRole("list", { name: "COVID-19 PBMC chats" });
-    expect(within(list).getAllByRole("button").map((b) => b.textContent)).toEqual(["Chat 1"]);
+    expect(within(list).queryByRole("button", { name: /New chat/ })).toBeNull();
+    expect(Array.from(list.querySelectorAll(".chat-title")).map((t) => t.textContent)).toEqual(["Chat 1"]);
     await click(within(list).getByRole("button", { name: "Chat 1" }));
     expect(bubbles()).toEqual(["Hello from intake"]);
   });

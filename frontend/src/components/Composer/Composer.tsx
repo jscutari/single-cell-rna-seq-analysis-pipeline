@@ -1,17 +1,29 @@
-import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowUpIcon, PaperclipIcon } from "../icons/Icons";
+import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { ArrowUpIcon, CloseIcon, PaperclipIcon } from "../icons/Icons";
 import "./Composer.css";
+
+export interface Attachment {
+  id: string;
+  name: string;
+}
 
 interface ComposerProps {
   /** Return false to keep the text in the box (e.g. the message could not be sent yet). */
   onSend: (text: string) => boolean | void;
-  onAttach: () => void;
+  /** Files picked with the paperclip. Without it, the paperclip calls onAttach. */
+  onAttachFiles?: (files: File[]) => void;
+  onAttach?: () => void;
+  /** Files waiting to go out with the next message. */
+  attachments?: Attachment[];
+  onRemoveAttachment?: (id: string) => void;
+  /** Shown above the box on the left, e.g. which project a new chat goes in. */
+  context?: ReactNode;
 }
 
-export function Composer({ onSend, onAttach }: ComposerProps) {
+export function Composer({ onSend, onAttachFiles, onAttach, attachments = [], onRemoveAttachment, context }: ComposerProps) {
   const [text, setText] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  // Shell: the button is always clickable; sending is a stub until the chat backend exists.
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
     if (onSend(text.trim()) === false) return;
@@ -23,10 +35,49 @@ export function Composer({ onSend, onAttach }: ComposerProps) {
   };
 
   return (
-    <form className="composer" aria-label="Ask SCRAP" onSubmit={submit}>
-      <button className="attach" type="button" aria-label="Attach dataset" onClick={onAttach}>
+    <form className={attachments.length ? "composer composer--with-files" : "composer"} aria-label="Ask SCRAP" onSubmit={submit}>
+      {(context || attachments.length > 0) && (
+        <div className="composer-above">
+          {context}
+          {attachments.length > 0 && (
+            <ul className="composer-files" aria-label="Attached files">
+              {attachments.map((a) => (
+                <li key={a.id} className="composer-file">
+                  <span className="composer-file-name">{a.name}</span>
+                  {onRemoveAttachment && (
+                    <button type="button" aria-label={`Remove ${a.name}`} onClick={() => onRemoveAttachment(a.id)}>
+                      <CloseIcon />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      <button
+        className="attach"
+        type="button"
+        aria-label="Attach files"
+        onClick={() => (onAttachFiles ? fileInput.current?.click() : onAttach?.())}
+      >
         <PaperclipIcon />
       </button>
+      {onAttachFiles && (
+        <input
+          ref={fileInput}
+          className="sr-only"
+          type="file"
+          multiple
+          aria-label="Choose files to attach"
+          tabIndex={-1}
+          onChange={(e) => {
+            const picked = Array.from(e.target.files ?? []);
+            if (picked.length) onAttachFiles(picked);
+            e.target.value = "";
+          }}
+        />
+      )}
       <label className="sr-only" htmlFor="prompt">
         Ask SCRAP anything about your data
       </label>
@@ -34,7 +85,7 @@ export function Composer({ onSend, onAttach }: ComposerProps) {
         id="prompt"
         className="chat-input"
         rows={1}
-        placeholder="Ask SCRAP anything about your data..."
+        placeholder="Ask SCRAP a question, upload a dataset, or start a new analysis."
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}

@@ -32,3 +32,34 @@
   .topbar { padding-left: 29px; }
   .page--with-panel .page-view { right: 0; }
 }
+
+.round-action--on { background: var(--blue-pale); border-color: #85aee8; color: #2f5d9a; }
+
+/* Drag-and-drop: a dashed sheet over the page while files are dragged in */
+.drop-overlay {
+  position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; pointer-events: none;
+  background: rgba(228, 238, 251, .55);
+}
+.drop-sheet {
+  padding: 26px 38px; font-size: 20px; color: #2f5d9a; background: #fbfaf6;
+  border: 2px dashed #85aee8; border-radius: 14px; transform: rotate(-.6deg);
+  box-shadow: 0 6px 18px rgba(83, 77, 67, .16);
+}
+
+/* Drag handle on the side panel's left edge */
+.panel-resizer {
+  position: absolute; z-index: 8; top: 65px; bottom: 18px; width: 12px;
+  right: calc(var(--preview-width) + 12px); cursor: col-resize; touch-action: none;
+}
+.panel-resizer::after {
+  content: ""; position: absolute; left: 4px; top: 50%; width: 4px; height: 44px; margin-top: -22px;
+  border-radius: 4px; background: #c9d6e8; opacity: 0; transition: opacity .12s ease;
+}
+.panel-resizer:hover::after, .panel-resizer:focus-visible::after, .page--resizing .panel-resizer::after { opacity: 1; background: #85aee8; }
+.panel-resizer:focus-visible { outline: none; }
+/* While dragging: no text selection, and embedded PDFs must not swallow the pointer */
+.page--resizing { cursor: col-resize; user-select: none; }
+.page--resizing iframe { pointer-events: none; }
+@media (max-width: 740px) {
+  .panel-resizer { display: none; }
+}

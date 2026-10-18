@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ProjectSummary } from "./types/schemas";
 import type { Chat } from "./types/ui";
 
@@ -60,7 +60,11 @@ const input = () => screen.queryByLabelText("Ask SCRAP anything about your data"
 const typing = () => screen.queryByLabelText("SCRAP is typing");
 const bubbles = () => Array.from(document.querySelectorAll(".bubble:not(.bubble--typing)")).map((b) => b.textContent);
 const chatList = (name: string) => screen.queryByRole("list", { name: `${name} chats` });
-const chatTitles = (name: string) => within(chatList(name)!).getAllByRole("button").map((b) => b.textContent);
+const chatTitles = (name: string) =>
+  within(chatList(name)!)
+    .getAllByRole("button")
+    .filter((b) => !b.classList.contains("chat-rename-button"))
+    .map((b) => b.textContent);
 
 function send(text: string) {
   fireEvent.change(input()!, { target: { value: text } });
@@ -83,6 +87,7 @@ async function renderApp() {
 }
 
 beforeEach(() => {
+  localStorage.clear(); // remembered choices (last project, sidebar, panel width) must not leak between tests
   Element.prototype.scrollIntoView = vi.fn();
   api.listProjects.mockResolvedValue(PROJECTS);
   api.createProject.mockImplementation(async (name: string) => ({ id: `new-${name}`, name, created_at: NOW }));
@@ -180,7 +185,7 @@ describe("chat", () => {
     await renderApp();
     send("hello from home");
     await act(async () => {});
-    expect(chatTitles("Project 1")).toEqual(["New chat", "Chat 1", "Chat 2", "Chat 3"]);
+    expect(chatTitles("Project 1")).toEqual(["New chat", "Chat 1", "Chat 2", "From home"]);
     expect(bubbles()).toEqual(["hello from home"]);
     reply("r1");
     expect(bubbles()).toEqual(["hello from home", "Trademarked 2026  Jiggle by Kerry"]);
@@ -275,6 +280,9 @@ describe("project page", () => {
       "de_results.csv",
       "umap_clusters.svg",
       "analysis_notes.txt",
+      "report.md",
+      "ifn_alpha_cd14_monocytes.ipynb",
+      "ifn_alpha_donor_scores.png",
     ]);
     const findings = screen.getAllByRole("article");
     expect(findings).toHaveLength(3);
@@ -351,5 +359,312 @@ describe("file preview", () => {
     expect(document.querySelector(".file-row .file-name")!.textContent).toBe("my_plot.svg");
     expect(panel()!.getAttribute("aria-label")).toBe("Preview of my_plot.svg");
     expect(screen.getByRole("img", { name: "my_plot.svg" }).getAttribute("src")).toBe("blob:mock-1");
+  });
+});
+
+describe("sidebar collapse", () => {
+  it("collapses to an icon rail, hides chats, and remembers the choice", async () => {
+    localStorage.removeItem("scrap.sidebarCollapsed");
+    await renderApp();
+    await click(projectButton("Project 1"));
+    expect(chatList("Project 1")).toBeTruthy();
+    await click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(document.querySelector(".sidebar")!.classList.contains("sidebar--collapsed")).toBe(true);
+    expect(chatList("Project 1")).toBeNull();
+    expect(localStorage.getItem("scrap.sidebarCollapsed")).toBe("1");
+    await click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(chatList("Project 1")).toBeTruthy();
+    expect(localStorage.getItem("scrap.sidebarCollapsed")).toBe("0");
+  });
+});
+
+describe("chat names", () => {
+  async function renameTo(title: string, key = "Enter") {
+    const field = screen.getByRole("textbox", { name: /^Rename/ });
+    fireEvent.change(field, { target: { value: title } });
+    await act(async () => {
+      fireEvent.keyDown(field, { key });
+    });
+  }
+
+  it("renames a chat with the pencil button; Escape cancels", async () => {
+    await renderApp();
+    await click(projectButton("Project 1"));
+    await click(screen.getByRole("button", { name: "Rename Chat 1" }));
+    await renameTo("Monocyte questions");
+    expect(chatTitles("Project 1")).toEqual(["New chat", "Monocyte questions", "Chat 2"]);
+    await click(screen.getByRole("button", { name: "Rename Chat 2" }));
+    await renameTo("ignored", "Escape");
+    expect(chatTitles("Project 1")).toEqual(["New chat", "Monocyte questions", "Chat 2"]);
+  });
+
+  it("double-clicking a chat title renames it too", async () => {
+    await renderApp();
+    await click(projectButton("Project 1"));
+    await act(async () => {
+      fireEvent.doubleClick(within(chatList("Project 1")!).getByRole("button", { name: "Chat 2" }));
+    });
+    await renameTo("Neutrophils");
+    expect(chatTitles("Project 1")).toEqual(["New chat", "Chat 1", "Neutrophils"]);
+  });
+
+  it("names a new chat from its first message, but never renames a chat the user named or one with history", async () => {
+    await renderApp();
+    await click(projectButton("Project 1"));
+    await click(within(chatList("Project 1")!).getByRole("button", { name: "New chat" }));
+    send("Can you check HLA class II in monocytes?");
+    expect(chatTitles("Project 1")).toEqual(["New chat", "Chat 1", "Chat 2", "Check HLA class II in monocytes"]);
+    send("And in CD16 monocytes?");
+    expect(chatTitles("Project 1")).toEqual(["New chat", "Chat 1", "Chat 2", "Check HLA class II in monocytes"]);
+    await openChat("Project 1", "Chat 1");
+    send("a follow-up in an old chat");
+    expect(chatTitles("Project 1")[1]).toBe("Chat 1");
+    await click(within(chatList("Project 1")!).getByRole("button", { name: "New chat" }));
+    await click(screen.getByRole("button", { name: "Rename Chat 4" }));
+    await renameTo("My name");
+    send("This message should not rename it");
+    expect(chatTitles("Project 1")).toContain("My name");
+  });
+});
+
+describe("project page new chat", () => {
+  it("has a New chat button next to Upload file that opens a fresh chat", async () => {
+    await renderApp();
+    await click(projectButton("Project 1"));
+    const section = screen.getByRole("region", { name: "Files" });
+    await click(within(section).getByRole("button", { name: "New chat" }));
+    expect(chatTitles("Project 1")).toEqual(["New chat", "Chat 1", "Chat 2", "Chat 3"]);
+    expect(screen.getByText(/Welcome to/)).toBeTruthy();
+    expect(input()).toBeTruthy();
+  });
+});
+
+describe("files in a chat", () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:mock-1");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  async function drop(files: File[]) {
+    const page = document.querySelector("main.page")!;
+    await act(async () => {
+      fireEvent.dragEnter(page, { dataTransfer: { types: ["Files"], files } });
+    });
+    expect(screen.getByText(/Drop files to add them to Project 1/)).toBeTruthy();
+    await act(async () => {
+      fireEvent.drop(page, { dataTransfer: { types: ["Files"], files } });
+    });
+  }
+
+  it("dropping files attaches them to the next message and adds them to the project", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    await drop([new File(["x"], "my_paper.pdf", { type: "application/pdf" })]);
+    expect(screen.queryByText(/Drop files to add/)).toBeNull();
+    const chips = screen.getByRole("list", { name: "Attached files" });
+    expect(within(chips).getByText("my_paper.pdf")).toBeTruthy();
+    send("what does this paper say?");
+    expect(api.sendMessage).toHaveBeenCalledWith("p1", "what does this paper say?\n\n📎 Attached: my_paper.pdf", expect.stringMatching(/^[0-9a-f]{32}$/));
+    expect(screen.queryByRole("list", { name: "Attached files" })).toBeNull();
+    await click(projectButton("Project 1"));
+    expect(Array.from(document.querySelectorAll(".file-row .file-name")).map((f) => f.textContent)).toContain("my_paper.pdf");
+  });
+
+  it("the paperclip attaches files; an attachment can be removed before sending", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    const picker = screen.getByLabelText("Choose files to attach") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(picker, { target: { files: [new File(["a"], "a.csv"), new File(["b"], "b.csv")] } });
+    });
+    await click(screen.getByRole("button", { name: "Remove a.csv" }));
+    send("");
+    expect(api.sendMessage).toHaveBeenCalledWith("p1", "📎 Attached: b.csv", expect.stringMatching(/^[0-9a-f]{32}$/));
+  });
+
+  it("the Files button opens a panel next to the chat with papers, charts, figures and code", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    await click(screen.getByRole("button", { name: "Show project files" }));
+    const panel = screen.getByRole("complementary", { name: "Project files" });
+    const groups = within(panel).getAllByRole("region").map((g) => g.getAttribute("aria-label"));
+    expect(groups).toEqual(["Papers & reports", "Charts", "Figures", "Code", "Tables", "Data"]);
+    expect(input()).toBeTruthy(); // the chat stays usable
+
+    await click(within(panel).getByRole("button", { name: /ifn_alpha_cd14_monocytes\.ipynb/ }));
+    expect(screen.getByRole("complementary", { name: "Preview of ifn_alpha_cd14_monocytes.ipynb" })).toBeTruthy();
+    await click(screen.getByRole("button", { name: "Back to files" }));
+
+    const charts = within(screen.getByRole("complementary", { name: "Project files" })).getByRole("region", { name: "Charts" });
+    await click(within(charts).getAllByRole("button")[0]);
+    expect(screen.getByRole("img", { name: /Volcano plot/ })).toBeTruthy();
+
+    await click(screen.getByRole("button", { name: "Close preview" }));
+    expect(screen.queryByRole("complementary", { name: /^(Preview of|Project files|Chart:)/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show project files" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("the Files button only appears in a chat and the panel closes when leaving it", async () => {
+    await renderApp();
+    expect(screen.queryByRole("button", { name: "Show project files" })).toBeNull();
+    await openChat("Project 1", "Chat 1");
+    await click(screen.getByRole("button", { name: "Show project files" }));
+    await click(projectButton("Project 1"));
+    expect(screen.queryByRole("complementary", { name: "Project files" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /project files/ })).toBeNull();
+  });
+});
+
+describe("logo", () => {
+  it("returns to a fresh start screen: no project open, panels closed, empty composer", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    await click(screen.getByRole("button", { name: "Show project files" }));
+    fireEvent.change(input()!, { target: { value: "half-typed question" } });
+    await click(screen.getByRole("button", { name: "SCRAP home" }));
+    expect(screen.getByText(/Welcome to/)).toBeTruthy();
+    expect(chatList("Project 1")).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Project files" })).toBeNull();
+    expect(input()!.value).toBe("");
+    expect(screen.getByRole("button", { name: /^New chat goes in Project 1/ })).toBeTruthy();
+  });
+});
+
+describe("start screen project chip", () => {
+  const chip = () => screen.getByRole("button", { name: /^New chat goes in/ });
+
+  it("shows where a new chat goes and lets you pick another project", async () => {
+    await renderApp();
+    expect(chip().textContent).toContain("Project 1");
+    await click(chip());
+    const menu = screen.getByRole("menu", { name: "Choose a project" });
+    expect(within(menu).getByRole("menuitemradio", { name: "Project 1" }).getAttribute("aria-checked")).toBe("true");
+    await click(within(menu).getByRole("menuitemradio", { name: "Other" }));
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(chip().textContent).toContain("Other");
+    send("compare neutrophils");
+    await act(async () => {});
+    expect(api.sendMessage).toHaveBeenCalledWith("p2", "compare neutrophils", expect.stringMatching(/^[0-9a-f]{32}$/));
+    expect(chatTitles("Other")).toContain("Compare neutrophils");
+  });
+
+  it("defaults to the project you last worked in, even after a reload", async () => {
+    await renderApp();
+    await click(projectButton("Other"));
+    await click(screen.getByRole("button", { name: "SCRAP home" }));
+    expect(chip().textContent).toContain("Other");
+    cleanup(); // a new visit: the remembered project is still the default
+    await renderApp();
+    expect(chip().textContent).toContain("Other");
+  });
+
+  it("New project from the chip creates it and stays on the start screen", async () => {
+    await renderApp();
+    await click(chip());
+    await click(screen.getByRole("menuitem", { name: "New project" }));
+    expect(chip().textContent).toContain("Project 2");
+    expect(screen.getByText(/Welcome to/)).toBeTruthy();
+    send("first question");
+    await act(async () => {});
+    expect(api.sendMessage).toHaveBeenCalledWith("new-Project 2", "first question", expect.stringMatching(/^[0-9a-f]{32}$/));
+  });
+
+  it("closes the menu with Escape or a click outside", async () => {
+    await renderApp();
+    await click(chip());
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    expect(screen.queryByRole("menu")).toBeNull();
+    await click(chip());
+    await act(async () => {
+      fireEvent.mouseDown(document.body);
+    });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("is only on the start screen", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    expect(screen.queryByRole("button", { name: /^New chat goes in/ })).toBeNull();
+  });
+});
+
+describe("resizable side panel", () => {
+  const page = () => document.querySelector("main.page") as HTMLElement;
+
+  // jsdom has no PointerEvent; without one, simulated pointer events carry no clientX.
+  beforeAll(() => {
+    if (!("PointerEvent" in window)) {
+      class PointerEventStub extends MouseEvent {
+        pointerId: number;
+        constructor(type: string, init: PointerEventInit = {}) {
+          super(type, init);
+          this.pointerId = init.pointerId ?? 0;
+        }
+      }
+      Object.defineProperty(window, "PointerEvent", { value: PointerEventStub, configurable: true });
+    }
+  });
+
+  it("resizes with the keyboard, remembers the width, and double-click resets it", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    await click(screen.getByRole("button", { name: "Show project files" }));
+    const handle = screen.getByRole("separator", { name: "Resize panel" });
+    await act(async () => {
+      fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    });
+    const wider = page().style.getPropertyValue("--preview-width");
+    expect(wider).toMatch(/^\d+px$/);
+    expect(localStorage.getItem("scrap.panelWidth")).toBe(wider.replace("px", ""));
+    await act(async () => {
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+    });
+    expect(parseInt(page().style.getPropertyValue("--preview-width"))).toBe(parseInt(wider) - 24);
+    await act(async () => {
+      fireEvent.doubleClick(handle);
+    });
+    expect(page().style.getPropertyValue("--preview-width")).toBe("");
+    expect(localStorage.getItem("scrap.panelWidth")).toBeNull();
+  });
+
+  it("drags to resize", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    await click(screen.getByRole("button", { name: "Show project files" }));
+    vi.spyOn(page(), "getBoundingClientRect").mockReturnValue({ left: 0, right: 1200, width: 1200 } as DOMRect);
+    const handle = screen.getByRole("separator", { name: "Resize panel" });
+    handle.setPointerCapture = vi.fn();
+    handle.releasePointerCapture = vi.fn();
+    await act(async () => {
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 760 });
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 600 });
+      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 600 });
+    });
+    expect(page().style.getPropertyValue("--preview-width")).toBe("582px"); // 1200 - 18 - 600
+    await act(async () => {
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 600 });
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 100 });
+    });
+    expect(page().style.getPropertyValue("--preview-width")).toBe("822px"); // capped: chat keeps 360px
+  });
+
+  it("has no handle without a panel", async () => {
+    await renderApp();
+    await openChat("Project 1", "Chat 1");
+    expect(screen.queryByRole("separator", { name: "Resize panel" })).toBeNull();
+  });
+});
+
+describe("name", () => {
+  it("the start screen says what SCRAP stands for, with the initials picked out", async () => {
+    await renderApp();
+    const caption = document.querySelector(".welcome-acronym")!;
+    expect(caption.textContent).toBe("Single-cell RNA-seq Analysis Pipeline");
+    expect(Array.from(caption.querySelectorAll("b")).map((b) => b.textContent).join("")).toBe("ScRAP");
+    expect(screen.getByRole("button", { name: "SCRAP home" }).getAttribute("title")).toContain(
+      "Single-cell RNA-seq Analysis Pipeline",
+    );
   });
 });

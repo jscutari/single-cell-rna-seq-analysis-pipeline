@@ -48,13 +48,18 @@
   background: #f0c4cb; border-radius: 70% 10% 80% 20%;
   transform: rotate(-2.5deg); opacity: .86;
 }
+/* What the name stands for: a small note under the title, initials picked out in highlighter */
+.welcome-acronym { font-size: 14px; letter-spacing: .3px; color: #8290aa; margin: 1px auto 11px; white-space: nowrap; }
+.welcome-acronym b {
+  font-weight: 700; color: var(--ink); padding: 0 .5px;
+  background: linear-gradient(transparent 64%, rgba(240, 196, 203, .8) 64%, rgba(240, 196, 203, .8) 90%, transparent 90%);
+}
 .welcome-subtitle { font-size: 17px; font-weight: 500; margin: 4px auto 5px; white-space: nowrap; }
 .underlined { position: relative; white-space: nowrap; }
 .underlined::after {
   content: ""; position: absolute; height: 2px; left: 0; right: -2px; bottom: -4px;
   transform: rotate(-1deg); background: #a6c9ec;
 }
-.welcome-description { font-size: 16px; color: #8290a5; margin: 9px auto 0; line-height: 1.4; }
 
 @media (max-height: 760px) {
   .welcome-paper { height: 285px; top: 44%; }
@@ -62,13 +67,12 @@
   .logo-tile { width: 85px; height: 85px; margin-bottom: 14px; }
   .logo-tile img { width: 62px; height: 68px; }
   .welcome-title { font-size: 34px; margin-bottom: 8px; }
-  .welcome-description { margin-top: 7px; }
+  .welcome-acronym { font-size: 13px; margin: 3px auto 7px; }
 }
 @media (max-width: 1050px) {
   .welcome-paper { width: min(540px, 66%); height: 310px; }
   .welcome-title { font-size: 35px; }
   .welcome-subtitle { font-size: 15px; }
-  .welcome-description { font-size: 14px; }
 }
 @media (max-width: 740px) {
   .welcome-paper { left: 51%; width: calc(100% - 42px); max-width: 480px; height: 275px; top: 44%; }
@@ -76,5 +80,5 @@
   .logo-tile img { height: 65px; width: 65px; }
   .welcome-title { font-size: clamp(26px, 5vw, 33px); }
   .welcome-subtitle { white-space: normal; line-height: 1.4; font-size: 14px; }
-  .welcome-description { font-size: 13px; }
+  .welcome-acronym { font-size: 12px; white-space: normal; }
 }

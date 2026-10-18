@@ -4,7 +4,7 @@ import type { ProjectSummary } from "../../types/schemas";
 import type { FindingCard, ProjectFile, RunInfo } from "../../types/ui";
 import { FindingChart } from "../Charts/FindingChart";
 import { useRef } from "react";
-import { FileIcon, UploadIcon } from "../icons/Icons";
+import { FileIcon, PlusIcon, UploadIcon } from "../icons/Icons";
 import "./ProjectView.css";
 
 interface ProjectViewProps {
@@ -20,6 +20,7 @@ interface ProjectViewProps {
   runError?: string;
   onStartRun?: () => void;
   onStopRun?: () => void;
+  onNewChat?: () => void;
 }
 
 const RUN_LABEL: Record<RunInfo["status"], string> = {
@@ -45,6 +46,7 @@ const KIND_LABEL: Record<ProjectFile["kind"], string> = {
   tsv: "TSV",
   image: "Image",
   text: "Text",
+  notebook: "Notebook",
   h5ad: "AnnData",
   other: "File",
 };
@@ -53,7 +55,19 @@ const VERDICT_LABEL = { approve: "Critic approved", revise: "Critic: revise", re
 const NOVELTY_LABEL = { known: "Known", partly_known: "Partly known", not_found_in_sources: "Not found in sources" } as const;
 
 /** A project's page: its files and key findings. */
-export function ProjectView({ project, files, findings, activeFileId, onOpenFile, onUpload, run, runError, onStartRun, onStopRun }: ProjectViewProps) {
+export function ProjectView({
+  project,
+  files,
+  findings,
+  activeFileId,
+  onOpenFile,
+  onUpload,
+  onNewChat,
+  run,
+  runError,
+  onStartRun,
+  onStopRun,
+}: ProjectViewProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   return (
     <div className="project-page">
@@ -90,27 +104,35 @@ export function ProjectView({ project, files, findings, activeFileId, onOpenFile
           <h2 id="files-heading" className="project-section-title">
             Files
           </h2>
-          {onUpload && (
-            <>
-              <button className="upload-button" type="button" onClick={() => fileInput.current?.click()}>
-                <UploadIcon />
-                <span>Upload file</span>
+          <div className="project-actions">
+            {onNewChat && (
+              <button className="upload-button upload-button--secondary" type="button" onClick={onNewChat}>
+                <PlusIcon />
+                <span>New chat</span>
               </button>
-              <input
-                ref={fileInput}
-                className="sr-only"
-                type="file"
-                multiple
-                aria-label="Upload files"
-                tabIndex={-1}
-                onChange={(e) => {
-                  const picked = Array.from(e.target.files ?? []);
-                  if (picked.length) onUpload(picked);
-                  e.target.value = ""; // allow picking the same file again
-                }}
-              />
-            </>
-          )}
+            )}
+            {onUpload && (
+              <>
+                <button className="upload-button" type="button" onClick={() => fileInput.current?.click()}>
+                  <UploadIcon />
+                  <span>Upload file</span>
+                </button>
+                <input
+                  ref={fileInput}
+                  className="sr-only"
+                  type="file"
+                  multiple
+                  aria-label="Upload files"
+                  tabIndex={-1}
+                  onChange={(e) => {
+                    const picked = Array.from(e.target.files ?? []);
+                    if (picked.length) onUpload(picked);
+                    e.target.value = ""; // allow picking the same file again
+                  }}
+                />
+              </>
+            )}
+          </div>
         </div>
         {files.length ? (
           <ul className="file-list">

@@ -57,6 +57,10 @@ export function mockFilesFor(projectId: string): ProjectFile[] {
     file("de_results.csv", "csv", 1017, 5, "/mock-files/de_results.csv", "Pseudobulk DE, CD14 monocytes"),
     file("umap_clusters.svg", "image", 46_907, 4, "/mock-files/umap_clusters.svg", "UMAP coloured by cell type"),
     file("analysis_notes.txt", "text", 671, 1, "/mock-files/analysis_notes.txt"),
+    // Real outputs from a SCRAP run on the Wilk et al. COVID data:
+    file("report.md", "text", 1547, 0.5, "/mock-files/report.md", "Final report"),
+    file("ifn_alpha_cd14_monocytes.ipynb", "notebook", 78_759, 0.6, "/mock-files/ifn_alpha_cd14_monocytes.ipynb", "Notebook: IFN-α response in CD14 monocytes"),
+    file("ifn_alpha_donor_scores.png", "image", 32_596, 0.6, "/mock-files/ifn_alpha_donor_scores.png", "Figure: IFN-α score per donor"),
   ];
   return projectId === "p1" ? files : files.slice(2);
 }
