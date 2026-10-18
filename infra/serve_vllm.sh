@@ -41,6 +41,8 @@ args=(
   --enable-auto-tool-choice
   # Schema-constrained (JSON) replies may not contain free whitespace; otherwise the
   # model can emit blank lines until the token limit and the JSON is cut off.
+  # (whitespace control needs an explicit grammar backend; xgrammar is vLLM's default engine)
+  --structured-outputs-config.backend xgrammar
   --structured-outputs-config.disable_any_whitespace true
 )
 env_args=()
