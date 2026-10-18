@@ -1,0 +1,51 @@
+{
+  "wilk": {
+    "name": "COVID-19 PBMC (Wilk et al. 2020)",
+    "url": "https://datasets.cellxgene.cziscience.com/8d7fad46-2f37-4aa0-ac9d-babbc36efb6f.h5ad",
+    "paper_doi": "10.1038/s41591-020-0944-y",
+    "case": "COVID-19",
+    "tissue": "peripheral blood"
+  },
+  "schulte": {
+    "name": "COVID-19 PBMC (Schulte-Schrepping et al. 2020)",
+    "url": "https://datasets.cellxgene.cziscience.com/0cb10876-cd52-4795-bae7-7adee5d6a4c5.h5ad",
+    "paper_doi": "10.1016/j.cell.2020.08.001",
+    "case": "COVID-19",
+    "tissue": "peripheral blood"
+  },
+  "lee": {
+    "name": "COVID-19 PBMC (Lee et al. 2020)",
+    "url": "https://datasets.cellxgene.cziscience.com/a26c0d2d-65e7-4b9b-a314-a75c807a7c1e.h5ad",
+    "paper_doi": "10.1126/sciimmunol.abd1554",
+    "case": "COVID-19",
+    "tissue": "peripheral blood"
+  },
+  "melms": {
+    "name": "Lethal COVID-19 lung (Melms et al. 2021)",
+    "url": "https://datasets.cellxgene.cziscience.com/1792df55-7cfe-4564-afcf-4bb3ffb73bc0.h5ad",
+    "paper_doi": "10.1038/s41586-021-03569-1",
+    "case": "COVID-19",
+    "tissue": "lung"
+  },
+  "leng": {
+    "name": "Alzheimer's entorhinal cortex (Leng et al. 2021)",
+    "url": "https://datasets.cellxgene.cziscience.com/bd45e577-ee39-4e44-942f-c26be669227d.h5ad",
+    "paper_doi": "10.1038/s41593-020-00764-7",
+    "case": "Alzheimer disease",
+    "tissue": "entorhinal cortex"
+  },
+  "jakel": {
+    "name": "Multiple sclerosis white matter (Jäkel et al. 2019)",
+    "url": "https://datasets.cellxgene.cziscience.com/8bbea7c5-c742-4c27-a597-0f1e1383bb48.h5ad",
+    "paper_doi": "10.1038/s41586-019-0903-2",
+    "case": "multiple sclerosis",
+    "tissue": "brain white matter"
+  },
+  "sjogren": {
+    "name": "Sjögren's disease labial gland (2023)",
+    "url": "https://datasets.cellxgene.cziscience.com/06e91d29-15e6-4590-9462-7ac166c445e9.h5ad",
+    "paper_doi": "10.21203/rs.3.rs-3601404/v2",
+    "case": "Sjogren syndrome",
+    "tissue": "labial salivary gland"
+  }
+}
