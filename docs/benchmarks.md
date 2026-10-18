@@ -125,6 +125,25 @@ Across all runs, **8 of the 18 published findings were recovered at least once**
 
 Five parallel hypotheses produce **5.8× the token throughput** of a single agent on the same GPU, because vLLM batches their requests. Wall-clock grows only from 100 s to 143 s, while the system runs 4× the LLM calls and reviews every claim.
 
+### 4. Serving: parallel agents on one H100
+
+The full system ran on Wilk with N hypotheses in parallel, in two vLLM setups (`bench/results/serving.jsonl`):
+
+| Parallel hypotheses | 1 | 2 | 4 | 8 |
+| --- | --- | --- | --- | --- |
+| **Tokens/s, DSpark speculative decoding** | 322 | 621 | **1,072** | 992 |
+| Tokens/s, no speculative decoding | 268 | – | 492 | 803 |
+| Wall per hypothesis (s), DSpark | 56 | 45 | 29 | **25** |
+| LLM call p50 / p95 (s), DSpark | 2.7 / 7.1 | 3.0 / 11.7 | 3.5 / 19.1 | 5.5 / 32.0 |
+| LLM call p50 / p95 (s), no spec. decoding | 4.2 / 23.8 | – | 8.2 / 32.5 | 10.4 / 42.0 |
+| Spec. decoding acceptance | 69% | 68% | 67% | 66% |
+| Prefix-cache hit, DSpark / none | 5% / 48% | 2% / – | 5% / 53% | 11% / 54% |
+
+**Reading:**
+- **Throughput scales almost linearly to 4 parallel hypotheses** (3.3× from one). At 8, the 16 CPU cores running the analysis kernels, not the GPU, become the limit. Time per hypothesis still falls to 25 s.
+- **DSpark speculative decoding is the right setup for an agent workload:** 2.2× the throughput and 2.3× lower median latency at 4 agents. The model card recommends no speculative decoding for maximum batch throughput, but that applies at far higher concurrency than our 4–8 agents.
+- **Prefix caching barely hits with DSpark on** (about 5%) but reaches about 50% without it. On this hybrid Mamba model, with these settings, the draft model appears to stop cached blocks from being reused. Fixing that would combine both benefits; it's an open item.
+
 ### Limits
 - **The scoring is strict.** It uses keyword rules written from abstracts, not an expert or LLM judge. Correct recoveries phrased unusually are missed.
 - **The runs are small.** Two repeats is enough to show direction, not to give tight intervals.
