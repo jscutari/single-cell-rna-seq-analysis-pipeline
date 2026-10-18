@@ -87,6 +87,7 @@ const finding = (over: Partial<Finding> = {}): Finding => ({
 });
 
 beforeEach(() => {
+  localStorage.clear(); // chats saved in the browser must not leak between tests
   Element.prototype.scrollIntoView = vi.fn();
   stream.handler = null;
   stream.calls = [];
@@ -155,17 +156,50 @@ describe("run controls", () => {
 });
 
 describe("chat with the backend", () => {
-  it("has one conversation per project (no New chat) with its saved history", async () => {
+  it("opens the saved conversation as Chat 1", async () => {
     await renderApp();
     await openProject();
     const list = screen.getByRole("list", { name: "COVID-19 PBMC chats" });
-    expect(within(list).queryByRole("button", { name: /New chat/ })).toBeNull();
     expect(Array.from(list.querySelectorAll(".chat-title")).map((t) => t.textContent)).toEqual(["Chat 1"]);
     await click(within(list).getByRole("button", { name: "Chat 1" }));
     expect(bubbles()).toEqual(["Hello from intake"]);
   });
 
-  it("sending from the start screen goes to the first project's Chat 1, with an id", async () => {
+  it("New chat opens an empty chat whose messages survive a reload", async () => {
+    const { unmount } = render(<App />);
+    await act(async () => {});
+    await openProject();
+    const list = () => screen.getByRole("list", { name: "COVID-19 PBMC chats" });
+    await click(within(list()).getByRole("button", { name: "New chat" }));
+    expect(Array.from(list().querySelectorAll(".chat-title")).map((t) => t.textContent)).toEqual(["Chat 1", "Chat 2"]);
+    expect(bubbles()).toEqual([]);
+    fireEvent.change(input()!, { target: { value: "Which monocytes changed?" } });
+    await click(screen.getByLabelText("Send message"));
+    const id = api.sendMessage.mock.calls[0][2];
+    push({ type: "chat_reply", payload: msg("r1", "CD14 monocytes.") });
+    expect(bubbles()).toEqual(["Which monocytes changed?", "CD14 monocytes."]);
+    unmount();
+
+    // The backend returns the whole project conversation as one list.
+    api.listChats.mockResolvedValue({
+      chats: [{ id: "covid_pbmc-chat-1", project_id: PROJECT.id, title: "Chat 1", created_at: NOW }],
+      messages: {
+        "covid_pbmc-chat-1": [msg("a1", "Hello from intake"), msg(id, "Which monocytes changed?", "user"), msg("r1", "CD14 monocytes.")],
+      },
+      run: { status: "idle", stage: null },
+      lastEventId: 41,
+    });
+    await renderApp();
+    await openProject();
+    const titles = Array.from(list().querySelectorAll(".chat-title")).map((t) => t.textContent);
+    expect(titles).toEqual(["Chat 1", "Which monocytes changed"]);
+    await click(within(list()).getByRole("button", { name: "Chat 1" }));
+    expect(bubbles()).toEqual(["Hello from intake"]);
+    await click(within(list()).getByRole("button", { name: "Which monocytes changed" }));
+    expect(bubbles()).toEqual(["Which monocytes changed?", "CD14 monocytes."]);
+  });
+
+  it("sending from the start screen starts a new chat in the first project, with an id", async () => {
     await renderApp();
     fireEvent.change(input()!, { target: { value: "Compare COVID vs healthy" } });
     await click(screen.getByLabelText("Send message"));
@@ -173,11 +207,11 @@ describe("chat with the backend", () => {
     const [pid, text, id] = api.sendMessage.mock.calls[0];
     expect([pid, text]).toEqual([PROJECT.id, "Compare COVID vs healthy"]);
     expect(id).toMatch(/^[0-9a-f]{32}$/);
-    expect(bubbles()).toEqual(["Hello from intake", "Compare COVID vs healthy"]);
+    expect(bubbles()).toEqual(["Compare COVID vs healthy"]);
     // The backend echoes our message as user_message with the same id: not shown twice.
     push({ type: "user_message", payload: msg(id, "Compare COVID vs healthy", "user") });
     push({ type: "chat_reply", payload: msg("r1", "Sounds good, starting.") });
-    expect(bubbles()).toEqual(["Hello from intake", "Compare COVID vs healthy", "Sounds good, starting."]);
+    expect(bubbles()).toEqual(["Compare COVID vs healthy", "Sounds good, starting."]);
   });
 
   it("shows messages sent from another tab", async () => {
