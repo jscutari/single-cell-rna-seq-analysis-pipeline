@@ -39,6 +39,9 @@ args=(
   --reasoning-parser nemotron_v3
   --tool-call-parser qwen3_coder
   --enable-auto-tool-choice
+  # Schema-constrained (JSON) replies may not contain free whitespace; otherwise the
+  # model can emit blank lines until the token limit and the JSON is cut off.
+  --structured-outputs-config.disable_any_whitespace true
 )
 env_args=()
 
