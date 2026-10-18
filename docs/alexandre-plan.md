@@ -12,9 +12,9 @@
 - [x] 8. Single-hypothesis loop: first critic-approved finding (IFN-α in CD14 monocytes, d = 1.72, p = 0.014, 90 s)
 - [x] 9. Full orchestrator (3 hypotheses in parallel, 127 s end to end)
 - [x] 10. Intake agent
-- [ ] 11. Literature (11a–d written and wired in; needs the Wilk PDF to test)
+- [x] 11. Literature: Europe PMC search on by default (keyword queries, relevance + most-cited), cited background, novelty
 - [x] 12. Reporter (final report + Q&A)
-- [ ] 13. Benchmarks *(COVID run 1 done: bench/results/covid_latest.md)*
+- [x] 13. Benchmarks: 7 datasets + shuffled-label control + serving (docs/benchmarks.md)
 
 ## Context
 The repo is only placeholders right now (one comment line per file, committed in `41b107d`). PLAN.md makes Alexandre responsible for `infra/`, `sandbox/`, `agents/` and `bench/`, plus `shared/` jointly with the partner. This plan splits that work into small steps. Each step has one thing to check before moving on, so you can follow along and learn as we build.
