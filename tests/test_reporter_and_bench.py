@@ -40,7 +40,8 @@ async def test_answer_includes_recent_chat_and_question(results, monkeypatch, fa
     history = [("user", f"q{i}") for i in range(12)]
     assert await reporter.answer("p", "PREFIX", "BG", *results, history, "Why?") == "Because..."
     prompt = fake_llm.calls[0]["messages"][1]["content"]
-    assert prompt.endswith("Question: Why?") and "user: q11" in prompt and "user: q3" not in prompt
+    assert "Question: Why?\n" in prompt and "at most 200 words" in prompt
+    assert "user: q11" in prompt and "user: q3" not in prompt
 
 
 # --- benchmark scoring ---
