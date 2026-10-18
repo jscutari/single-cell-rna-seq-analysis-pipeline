@@ -4,48 +4,159 @@
     "url": "https://datasets.cellxgene.cziscience.com/8d7fad46-2f37-4aa0-ac9d-babbc36efb6f.h5ad",
     "paper_doi": "10.1038/s41591-020-0944-y",
     "case": "COVID-19",
-    "tissue": "peripheral blood"
+    "tissue": "peripheral blood",
+    "findings": [
+      {
+        "name": "interferon-stimulated gene signature up",
+        "topic": "interferon|\\bISGs?\\b|\\bIFN|IFI27|ISG15|MX1|IFI6",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat"
+      },
+      {
+        "name": "HLA class II down",
+        "topic": "HLA[- ]?(class[- ])?II|HLA-D[RPQ]|MHC[- ]?(class[- ])?II|CD74",
+        "direction": "lower|decreas|\\bdown\\b|downregul|reduc|deplet|loss|lost|fewer|impair|suppress|weaker|diminish"
+      },
+      {
+        "name": "developing neutrophil population",
+        "topic": "neutrophil|granulocyte|myelocyte|immature myeloid",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat"
+      }
+    ],
+    "abstract_pmid": "32514174"
   },
   "schulte": {
     "name": "COVID-19 PBMC (Schulte-Schrepping et al. 2020)",
     "url": "https://datasets.cellxgene.cziscience.com/0cb10876-cd52-4795-bae7-7adee5d6a4c5.h5ad",
     "paper_doi": "10.1016/j.cell.2020.08.001",
     "case": "COVID-19",
-    "tissue": "peripheral blood"
+    "tissue": "peripheral blood",
+    "findings": [
+      {
+        "name": "HLA-DR-low monocytes",
+        "topic": "HLA[- ]?(class[- ])?II|HLA-D[RPQ]|MHC[- ]?(class[- ])?II|CD74",
+        "direction": "lower|decreas|\\bdown\\b|downregul|reduc|deplet|loss|lost|fewer|impair|suppress|weaker|diminish"
+      },
+      {
+        "name": "neutrophil precursors / dysfunctional neutrophils",
+        "topic": "neutrophil|granulocyte|myelocyte|myelopoiesis|immature myeloid",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat"
+      },
+      {
+        "name": "interferon-stimulated gene signature in monocytes",
+        "topic": "interferon|\\bISGs?\\b|\\bIFN|IFI27|ISG15|MX1|IFI6",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat"
+      }
+    ],
+    "abstract_pmid": "32810438"
   },
   "lee": {
     "name": "COVID-19 PBMC (Lee et al. 2020)",
     "url": "https://datasets.cellxgene.cziscience.com/a26c0d2d-65e7-4b9b-a314-a75c807a7c1e.h5ad",
     "paper_doi": "10.1126/sciimmunol.abd1554",
     "case": "COVID-19",
-    "tissue": "peripheral blood"
+    "tissue": "peripheral blood",
+    "findings": [
+      {
+        "name": "TNF/IL-1beta inflammatory response up",
+        "topic": "\\bTNF|IL-?1B|IL-1β|IL1B|inflammat|NF-?κ?B|NFKB",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat"
+      },
+      {
+        "name": "type I interferon response up in classical monocytes",
+        "topic": "interferon|\\bISGs?\\b|\\bIFN|IFI27|ISG15|MX1|IFI6",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat"
+      }
+    ],
+    "abstract_pmid": "32651212"
   },
   "melms": {
     "name": "Lethal COVID-19 lung (Melms et al. 2021)",
     "url": "https://datasets.cellxgene.cziscience.com/1792df55-7cfe-4564-afcf-4bb3ffb73bc0.h5ad",
     "paper_doi": "10.1038/s41586-021-03569-1",
     "case": "COVID-19",
-    "tissue": "lung"
+    "tissue": "lung",
+    "findings": [
+      {
+        "name": "monocyte-derived / alveolar macrophages infiltrate the lung",
+        "topic": "macrophage|monocyte",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat|infiltrat"
+      },
+      {
+        "name": "impaired T cell responses",
+        "topic": "\\bT[- ]cells?\\b|CD8|CD4|lymphocyte",
+        "direction": "lower|decreas|\\bdown\\b|downregul|reduc|deplet|loss|lost|fewer|impair|suppress|weaker|diminish"
+      },
+      {
+        "name": "alveolar type 2 cells stuck in a transitional state",
+        "topic": "alveolar type|\\bAT[12]\\b|pneumocyte|AT2|AT1",
+        "direction": null
+      },
+      {
+        "name": "CTHRC1+ pathological fibroblasts expand",
+        "topic": "fibroblast|CTHRC1|collagen|fibro",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat"
+      },
+      {
+        "name": "IL-1beta / IL-6 production",
+        "topic": "IL-?1B|IL-1β|IL1B|IL-?6\\b|interleukin",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat"
+      }
+    ],
+    "abstract_pmid": "33915568"
   },
   "leng": {
     "name": "Alzheimer's entorhinal cortex (Leng et al. 2021)",
     "url": "https://datasets.cellxgene.cziscience.com/bd45e577-ee39-4e44-942f-c26be669227d.h5ad",
     "paper_doi": "10.1038/s41593-020-00764-7",
     "case": "Alzheimer disease",
-    "tissue": "entorhinal cortex"
+    "tissue": "entorhinal cortex",
+    "findings": [
+      {
+        "name": "RORB+ excitatory neurons depleted",
+        "topic": "RORB|excitatory neuron",
+        "direction": "lower|decreas|\\bdown\\b|downregul|reduc|deplet|loss|lost|fewer|impair|suppress|weaker|diminish"
+      },
+      {
+        "name": "reactive astrocytes with lower homeostatic genes",
+        "topic": "astrocyte",
+        "direction": null
+      }
+    ],
+    "abstract_pmid": "33432193"
   },
   "jakel": {
     "name": "Multiple sclerosis white matter (Jäkel et al. 2019)",
     "url": "https://datasets.cellxgene.cziscience.com/8bbea7c5-c742-4c27-a597-0f1e1383bb48.h5ad",
     "paper_doi": "10.1038/s41586-019-0903-2",
     "case": "multiple sclerosis",
-    "tissue": "brain white matter"
+    "tissue": "brain white matter",
+    "findings": [
+      {
+        "name": "altered oligodendrocyte subpopulations",
+        "topic": "oligodendrocyte|oligodendroglia|\\bOPCs?\\b|oligodendrocyte precursor",
+        "direction": null
+      }
+    ],
+    "abstract_pmid": "30747918"
   },
   "sjogren": {
     "name": "Sjögren's disease labial gland (2023)",
     "url": "https://datasets.cellxgene.cziscience.com/06e91d29-15e6-4590-9462-7ac166c445e9.h5ad",
     "paper_doi": "10.21203/rs.3.rs-3601404/v2",
     "case": "Sjogren syndrome",
-    "tissue": "labial salivary gland"
+    "tissue": "labial salivary gland",
+    "findings": [
+      {
+        "name": "GZMK+ CD8 T cells enriched",
+        "topic": "GZMK|CD8|cytotoxic T",
+        "direction": "higher|increas|\\bup\\b|upregul|elevat|enrich|induc|expan|emerg|more|gain|greater|stronger|activat"
+      },
+      {
+        "name": "specific seromucous acinar cells lost",
+        "topic": "acinar|seromucous|PRR4|CST3",
+        "direction": "lower|decreas|\\bdown\\b|downregul|reduc|deplet|loss|lost|fewer|impair|suppress|weaker|diminish"
+      }
+    ],
+    "abstract_pmid": null
   }
 }
