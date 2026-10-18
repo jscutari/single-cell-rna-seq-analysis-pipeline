@@ -207,6 +207,13 @@ async def test_intake_ready_but_invalid_brief_keeps_chatting(env):
     assert orch._runs["p1"].stage == "intake" and "intake" not in stages(env.events)
 
 
+async def test_online_search_is_on_by_default(env):
+    env.intake_turns = [turn(False)]
+    await orch.start_run("p1")
+    await wait_for(env.events, lambda e: e.type == "chat_reply")
+    assert orch._runs["p1"].brief.online_search is True
+
+
 async def test_online_search_flag_survives_intake(env):
     env.intake_turns = [turn(False), turn(True)]
     await orch.start_run("p1")

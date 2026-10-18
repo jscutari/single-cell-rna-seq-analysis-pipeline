@@ -34,6 +34,8 @@ from shared.schemas import Brief, ChatMessage, Finding, Hypothesis, Role
 DATA_ROOT = Path(os.environ.get("DATA_ROOT", "/home/ubuntu/workspace/data"))
 SANDBOX_DIR = Path(__file__).resolve().parent.parent / "sandbox"
 N_HYPOTHESES = int(os.environ.get("N_HYPOTHESES", "3"))
+# Search Europe PMC for literature (abstracts) unless turned off with SCRAP_ONLINE_SEARCH=0.
+ONLINE_SEARCH = os.environ.get("SCRAP_ONLINE_SEARCH", "1") != "0"
 log = logging.getLogger("scrap.orchestrator")
 
 
@@ -99,7 +101,7 @@ async def _begin(run: _Run) -> None:
     run.summary = await _ensure_processed(run.project_dir)
     _save(run)
     _stage_done(run, "preprocess", f"{run.summary['n_cells']} cells x {run.summary['n_genes']} genes ready.")
-    run.brief = Brief(project_id=run.project_id)
+    run.brief = Brief(project_id=run.project_id, online_search=ONLINE_SEARCH)
     run.stage = "intake"
     await _intake_turn(run)
 
