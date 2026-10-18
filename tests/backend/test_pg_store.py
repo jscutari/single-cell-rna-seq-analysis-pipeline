@@ -217,13 +217,15 @@ def test_everything_survives_a_restart(pg_settings, orchestrator, pg_url):
         assert [m["content"] for m in after["messages"]] == ["Compare COVID vs healthy", "On it."]
         assert after["live"]["hypotheses"] == before["live"]["hypotheses"]
         assert after["live"]["llm_calls"] == before["live"]["llm_calls"]
-        assert after["last_event_id"] == before["last_event_id"]
+        # The first message started a run; the restart marked it stopped (one new event).
+        assert after["run"]["status"] == "stopped"
+        assert after["last_event_id"] == before["last_event_id"] + 1
         # The full prompt comes back from the llm_calls table.
         full = c.get(f"{BASE}/llm_calls/call_1").json()
         assert full["messages"] == [{"role": "user", "content": "the full prompt"}] and full["agent"] == "intake"
         # New events continue the id sequence.
         emit_and_wait(c.app, Event(type=EventType.stage_done, project_id=PRESET_ID, payload=stage(9)))
-        assert c.app.state.store.last_event_id == before["last_event_id"] + 1
+        assert c.app.state.store.last_event_id == before["last_event_id"] + 2
     ids = [r["id"] for r in asyncio.run(rows(pg_url, "SELECT id FROM events ORDER BY id"))]
     assert ids == list(range(1, len(ids) + 1))
 

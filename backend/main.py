@@ -34,6 +34,7 @@ def create_app(settings: Settings | None = None, orchestrator=None, store: InMem
         app.state.projects = ProjectRegistry(settings.data_root, settings.preset, pool=getattr(app.state.store, "pool", None))
         await app.state.projects.load_all()
         await app.state.projects.ensure_preset_project()
+        stop_interrupted_runs(app.state.hub)
         if app.state.orchestrator is None:
             app.state.orchestrator = load_orchestrator(settings)
         app.state.runs = RunManager(app.state.hub, app.state.orchestrator, app.state.projects)
@@ -59,6 +60,18 @@ def create_app(settings: Settings | None = None, orchestrator=None, store: InMem
         return {"status": "ok", "agents": settings.agents, "db": app.state.store.db_status}
 
     return app
+
+
+INTERRUPTED = "The backend restarted, so this run was interrupted. Start a new run to continue."
+
+
+def stop_interrupted_runs(hub: EventHub) -> list[str]:
+    """Runs saved as running belonged to the previous process; the agents' state is gone."""
+    interrupted = hub.store.running_projects()
+    for project_id in interrupted:
+        hub.publish("stage_done", project_id, {"stage": "stopped", "summary": INTERRUPTED})
+        log.warning("Marked the interrupted run of %s as stopped", project_id)
+    return interrupted
 
 
 async def open_store(settings: Settings) -> InMemoryStore:

@@ -9,9 +9,24 @@ Single-Cell RNA-seq Analysis Pipeline (SCRAP for short) developed for the NVIDIA
 
 The app has two parts: the **backend** (`backend/`, FastAPI) that drives the agents and streams their progress, and the **web app** (`frontend/`, React). Python dependencies are managed with [uv](https://docs.astral.sh/uv/); the frontend uses Node 20+.
 
+### The database (Postgres in Docker)
+
+The backend saves every event (chat, progress, trace) and the project list in Postgres, so a restart loses nothing; on startup it rebuilds its state from the database. Runs that were in progress when it stopped are marked stopped (the agents' working state can't resume).
+
+```bash
+cp .env.example .env              # then set a real POSTGRES_PASSWORD (and the same in DATABASE_URL)
+docker compose up -d db           # postgres:16, data in the "pgdata" volume, bound to 127.0.0.1:5432
+```
+
+The backend refuses to start if it can't reach the database. `SCRAP_STORE=memory` runs without it (nothing is saved). `GET /api/health` reports `"db": "ok"` or `"down"`.
+
+**Backups:** `backend/scripts/backup_db.sh` writes `~/workspace/backups/scrap-<time>.sql.gz` (keeps the newest 10). Make one before the demo and copy it off the box (`scp`). To restore: `gunzip -c <file> | docker compose exec -T db sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'`.
+
+**Querying:** `docker compose exec db psql -U scrap scrap`, e.g. `SELECT agent, sum(tokens_in) FROM llm_calls GROUP BY agent;`
+
 ### On the Brev box (real agents)
 
-vLLM and the sandbox image must be set up first (`infra/setup_brev.sh`, `infra/serve_vllm.sh`). Then:
+vLLM and the sandbox image must be set up first (`infra/setup_brev.sh`, `infra/serve_vllm.sh`), and the database started (above). Then:
 
 ```bash
 # One worker and no --reload: runs live in the backend's memory.
@@ -37,6 +52,7 @@ Open http://localhost:5173.
 ```bash
 mkdir -p /tmp/scrap-data/raw && cp <any .h5ad> /tmp/scrap-data/raw/covid_pbmc_wilk2020.h5ad
 DATA_ROOT=/tmp/scrap-data SCRAP_AGENTS=replay uv run uvicorn backend.main:app --port 8080
+# add SCRAP_STORE=memory to skip the database
 ```
 
 `backend/dev/recordings/sample_run.jsonl` plays back through the same event system (`SCRAP_REPLAY_FILE` picks another recording, `SCRAP_REPLAY_SPEED` its speed). Record a real run with `uv run python -m backend.dev.record <project_id> out.jsonl`.
@@ -44,6 +60,6 @@ DATA_ROOT=/tmp/scrap-data SCRAP_AGENTS=replay uv run uvicorn backend.main:app --
 ### Tests
 
 ```bash
-uv run pytest tests -m "not integration and not llm"   # backend + agents
+uv run pytest tests -m "not integration and not llm"   # backend + agents (database tests need docker compose up -d db)
 cd frontend && npm test && npm run check:contract       # web app, and its types vs shared/
 ```
