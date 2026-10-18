@@ -18,6 +18,7 @@ describe("overview", () => {
     expect(reportSummary("# Title\n\n## Summary\nAnalysis of 13 donors reveals a robust response.\n\n## Approved Findings\n..."))
       .toBe("Analysis of 13 donors reveals a robust response.");
     expect(reportSummary(null)).toBeNull();
+    expect(reportSummary("Here is the final report:\n\n# Summary\n\nIFN is up in monocytes.")).toBe("IFN is up in monocytes.");
   });
 
   it("builds an overview from project_state.json", () => {

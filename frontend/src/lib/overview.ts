@@ -14,7 +14,8 @@ export function reportSummary(markdown: string | null | undefined): string | nul
   const blocks = markdown
     .split(/\n\s*\n/)
     .map((b) => b.split("\n").filter((line) => !line.trim().startsWith("#")).join(" ").trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((b) => !b.endsWith(":")); // lead-ins like "Here is the final report:"
   const paragraph = blocks[0];
   if (!paragraph) return null;
   return paragraph.replace(/\*\*|__|\*|`/g, "").replace(/\s+/g, " ").trim();
