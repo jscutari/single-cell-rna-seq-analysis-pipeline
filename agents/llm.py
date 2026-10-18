@@ -23,7 +23,7 @@ VLLM_URL = os.environ.get("VLLM_URL", "http://localhost:8000/v1")
 MODEL = os.environ.get("VLLM_MODEL", "lightning")
 # Structured (JSON) replies: retries, and a lower token cap so a runaway reply ends sooner.
 JSON_ATTEMPTS = 3
-JSON_MAX_TOKENS = 8000
+JSON_MAX_TOKENS = 5000
 log = logging.getLogger("scrap.llm")
 T = TypeVar("T", bound=BaseModel)
 

@@ -175,7 +175,7 @@ def queries(*qs) -> str:
 async def test_background_online_searches_keyword_queries(tmp_path, monkeypatch, fake_llm):
     asked = []
 
-    async def fake_epmc(query, n=10):
+    async def fake_epmc(query, n=10, sort=None):
         asked.append(query)
         return [Chunk("PMID:9", "Wilk AJ et al. 2020", None, "interferon monocytes covid abstract")]
     monkeypatch.setattr(lit, "europe_pmc", fake_epmc)
@@ -183,7 +183,8 @@ async def test_background_online_searches_keyword_queries(tmp_path, monkeypatch,
     monkeypatch.setattr(lit, "chat", fake_llm)
     text, searched = await lit.background("p", tmp_path, "PREFIX", "How do monocytes respond in COVID-19 patients?",
                                           online=True)
-    assert asked == ["COVID-19 monocytes interferon", "COVID-19 HLA-DR monocytes"]  # keywords, not the sentence
+    # keywords, not the sentence; each query once by relevance and once by citation count
+    assert asked == ["COVID-19 monocytes interferon"] * 2 + ["COVID-19 HLA-DR monocytes"] * 2
     assert searched == ["PMID:9"] and text == "Known [PMID:9]."
     first = fake_llm.calls[0]
     assert first["kwargs"]["schema"] is Queries and first["kwargs"]["reasoning"] is False
@@ -191,7 +192,7 @@ async def test_background_online_searches_keyword_queries(tmp_path, monkeypatch,
 
 
 async def test_online_search_dedupes_and_survives_a_failed_query(tmp_path, monkeypatch):
-    async def flaky_epmc(query, n=10):
+    async def flaky_epmc(query, n=10, sort=None):
         if query == "bad":
             raise httpx.ConnectError("offline")
         return [Chunk("PMID:1", "A", None, "interferon monocytes"), Chunk("PMID:2", "B", None, "hla class")]
@@ -241,7 +242,7 @@ async def test_novelty_with_no_sources_stays_unchecked(tmp_path, monkeypatch, fa
 async def test_novelty_online_adds_new_abstracts_only(indexed, monkeypatch, fake_llm):
     added = []
 
-    async def fake_epmc(query, n=10):
+    async def fake_epmc(query, n=10, sort=None):
         added.append(query)
         return [Chunk("PMID:5", "T", None, "interferon monocytes")]
     monkeypatch.setattr(lit, "europe_pmc", fake_epmc)
@@ -251,5 +252,24 @@ async def test_novelty_online_adds_new_abstracts_only(indexed, monkeypatch, fake
     await lit.novelty("p", indexed, "PREFIX", f, online=True)
     await lit.novelty("p", indexed, "PREFIX", claim(), online=True)
     assert f.novelty == "known" and f.citations == ["PMID:5"]
-    assert added == ["interferon monocytes COVID-19"] * 2  # searched with keywords from the claim
+    assert added == ["interferon monocytes COVID-19"] * 4  # keywords from the claim, two sorts, two checks
     assert [c.source_id for c in Index(indexed).chunks].count("PMID:5") == 1
+
+
+async def test_europe_pmc_can_sort_by_citations(monkeypatch):
+    seen = {}
+
+    def handler(request):
+        seen.update(dict(request.url.params))
+        return httpx.Response(200, json={"resultList": {"result": []}})
+    mock_http(monkeypatch, handler)
+    await lit.europe_pmc("x", sort="CITED desc")
+    assert seen["sort"] == "CITED desc"
+
+
+async def test_novelty_cleans_up_copied_citations(indexed, monkeypatch, fake_llm):
+    monkeypatch.setattr(lit, "chat", fake_llm.reply("novelty", grades(
+        ("[wilk2020 p.1] Wilk et al. 2020", "same_claim"), ("wilk2020 p.1", "same_claim"))))
+    f = claim()
+    await lit.novelty("p", indexed, "PREFIX", f)
+    assert f.citations == ["wilk2020 p.1"]

@@ -172,11 +172,16 @@ class Index:
 
 # --- Europe PMC (optional online search) ---
 
-async def europe_pmc(query: str, n: int = 10) -> list[Chunk]:
-    """Titles and abstracts from Europe PMC as chunks. One GET, no API key."""
+async def europe_pmc(query: str, n: int = 10, sort: str | None = None) -> list[Chunk]:
+    """Titles and abstracts from Europe PMC as chunks. One GET, no API key.
+
+    sort=None ranks by relevance (favours recent papers); "CITED desc" surfaces landmark papers.
+    """
+    params = {"query": f"({query}) AND HAS_ABSTRACT:y", "format": "json", "resultType": "core", "pageSize": n}
+    if sort:
+        params["sort"] = sort
     async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.get(EUROPE_PMC, params={"query": f"({query}) AND HAS_ABSTRACT:y", "format": "json",
-                                                 "resultType": "core", "pageSize": n})
+        r = await client.get(EUROPE_PMC, params=params)
         r.raise_for_status()
     out = []
     for hit in r.json().get("resultList", {}).get("result", []):
@@ -216,11 +221,13 @@ async def add_online(index: "Index", queries: list[str]) -> list[str]:
     """Europe PMC abstracts for each query, new ones only. Returns the PMIDs added."""
     found: dict[str, Chunk] = {}
     for q in queries:
-        try:
-            for c in await europe_pmc(q, n=ABSTRACTS_PER_QUERY):
-                found.setdefault(c.source_id, c)
-        except httpx.HTTPError as error:
-            log.warning("Europe PMC search %r failed: %s", q, error)
+        # Half by relevance (recent work), half by citations (the landmark papers).
+        for sort in (None, "CITED desc"):
+            try:
+                for c in await europe_pmc(q, n=ABSTRACTS_PER_QUERY // 2, sort=sort):
+                    found.setdefault(c.source_id, c)
+            except httpx.HTTPError as error:
+                log.warning("Europe PMC search %r (%s) failed: %s", q, sort or "relevance", error)
     known = set(index.source_ids)
     new = [c for sid, c in found.items() if sid not in known]
     await index.add(new)
@@ -282,8 +289,13 @@ async def novelty(project_id: str, project_dir: Path, prefix: str, finding: Find
         prefix, "novelty", f"Finding: {finding.claim}\n\nPassages:\n{_passages(hits)}\n\nGrade each passage."),
         Grades, chat_fn=chat, project_id=project_id, hypothesis_id=finding.hypothesis_id)
     grades = parsed.grades
-    same = [g.citation for g in grades if g.relation == "same_claim"]
-    related = [g.citation for g in grades if g.relation in ("related", "contradicts")]
+    cites = [c.cite() for c, _ in hits]
+
+    def source(citation: str) -> str:
+        """The model may copy '[PMID:1] Author et al.'; keep only the passage's own citation."""
+        return next((c for c in cites if c in citation), citation.strip("[] "))
+    same = list(dict.fromkeys(source(g.citation) for g in grades if g.relation == "same_claim"))
+    related = list(dict.fromkeys(source(g.citation) for g in grades if g.relation in ("related", "contradicts")))
     finding.novelty = (Novelty.known if same else Novelty.partly_known if related
                        else Novelty.not_found_in_sources)
     finding.citations = same or related
