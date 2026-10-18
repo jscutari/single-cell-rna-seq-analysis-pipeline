@@ -3,7 +3,7 @@
 from pydantic import BaseModel
 
 from agents import prompting
-from agents.llm import chat
+from agents.llm import chat, chat_json
 from shared.schemas import Brief, ChatMessage
 
 
@@ -30,9 +30,9 @@ async def turn(project_id: str, summary: dict, brief: Brief, history: list[ChatM
     user = (f"Current brief draft:\n{brief.model_dump_json(exclude={'project_id'}, indent=2)}\n\n"
             f"Conversation so far:\n{convo}\n\nWrite the next assistant turn.")
     prefix = prompting.shared_prefix(summary, brief)
-    call = await chat("intake", prompting.messages(prefix, "intake", user),
-                      project_id=project_id, schema=IntakeTurn)
-    return IntakeTurn.model_validate_json(call.output)
+    _, result = await chat_json("intake", prompting.messages(prefix, "intake", user), IntakeTurn,
+                                chat_fn=chat, project_id=project_id)
+    return result
 
 
 def problems(brief: Brief, summary: dict) -> list[str]:

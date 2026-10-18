@@ -110,7 +110,18 @@ async def _intake_turn(run: _Run) -> None:
             await asyncio.sleep(1)
         if run.stage != "intake":
             return
-        result = await intake.turn(run.project_id, run.summary, run.brief, run.chat)
+        # Reply to something new: the opening (empty chat) or a user message. When the first
+        # message both starts the run and asks a question, two turns queue up; the second
+        # finds the question already answered and stays quiet.
+        if run.chat and run.chat[-1].role != Role.user:
+            return
+        try:
+            result = await intake.turn(run.project_id, run.summary, run.brief, run.chat)
+        except Exception:
+            # One bad model reply must not end the run: say so and let the user answer again.
+            log.exception("Intake turn failed for %s", run.project_id)
+            _say(run, "Sorry, I lost my train of thought there. Could you say that again?")
+            return
         run.brief = Brief(project_id=run.project_id, online_search=run.brief.online_search,
                           **result.brief.model_dump())
         emit(Event(type=EventType.brief_updated, project_id=run.project_id, payload=run.brief))

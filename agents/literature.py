@@ -26,7 +26,7 @@ import numpy as np
 from pydantic import BaseModel
 
 from agents import prompting
-from agents.llm import chat
+from agents.llm import chat, chat_json
 from shared.schemas import Finding, Novelty
 
 EMBED_MODEL = "nvidia/Nemotron-3-Embed-1B-BF16"
@@ -236,10 +236,10 @@ async def novelty(project_id: str, project_dir: Path, prefix: str, finding: Find
     if not hits:
         finding.novelty = Novelty.not_found_in_sources
         return
-    call = await chat("novelty", prompting.messages(
+    _, parsed = await chat_json("novelty", prompting.messages(
         prefix, "novelty", f"Finding: {finding.claim}\n\nPassages:\n{_passages(hits)}\n\nGrade each passage."),
-        project_id=project_id, hypothesis_id=finding.hypothesis_id, schema=Grades)
-    grades = Grades.model_validate_json(call.output).grades
+        Grades, chat_fn=chat, project_id=project_id, hypothesis_id=finding.hypothesis_id)
+    grades = parsed.grades
     same = [g.citation for g in grades if g.relation == "same_claim"]
     related = [g.citation for g in grades if g.relation in ("related", "contradicts")]
     finding.novelty = (Novelty.known if same else Novelty.partly_known if related

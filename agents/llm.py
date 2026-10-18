@@ -7,19 +7,29 @@ Smoke test (vLLM must be running):  uv run python -m agents.llm
 """
 
 import asyncio
+import logging
 import os
 import time
 import weakref
-from typing import Any
+from typing import Any, TypeVar
 
 from openai import AsyncOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from shared.events import Event, EventType, emit
 from shared.schemas import LLMCall
 
 VLLM_URL = os.environ.get("VLLM_URL", "http://localhost:8000/v1")
 MODEL = os.environ.get("VLLM_MODEL", "lightning")
+# Structured (JSON) replies: retries, and a lower token cap so a runaway reply ends sooner.
+JSON_ATTEMPTS = 3
+JSON_MAX_TOKENS = 8000
+log = logging.getLogger("scrap.llm")
+T = TypeVar("T", bound=BaseModel)
+
+
+class StructuredOutputError(RuntimeError):
+    """The model never produced valid JSON for the schema."""
 
 # One client per event loop: a client's pooled connections belong to the loop that
 # opened them, and reusing them from another loop fails with "Event loop is closed".
@@ -98,6 +108,30 @@ async def chat(
     )
     emit(Event(type=EventType.llm_call, project_id=project_id, payload=call))
     return call
+
+
+async def chat_json(agent: str, messages: list[dict[str, Any]], schema: type[T], *,
+                    attempts: int = JSON_ATTEMPTS, chat_fn=None, **kwargs: Any) -> tuple[LLMCall, T]:
+    """chat() with a JSON schema, parsed and validated; retries when the reply is unusable.
+
+    Schema-constrained decoding still allows whitespace, and the model sometimes gets
+    stuck emitting it until the token limit, leaving truncated JSON. That is rare and
+    random, so asking again almost always works. Each attempt is its own llm_call event,
+    linked to the failed one through parent_call_id. chat_fn defaults to chat(); callers
+    pass their module's own `chat` so tests can substitute a fake model.
+    """
+    chat_fn = chat_fn or chat
+    kwargs.setdefault("max_tokens", JSON_MAX_TOKENS)
+    parent = kwargs.pop("parent_call_id", None)
+    for attempt in range(1, attempts + 1):
+        call = await chat_fn(agent, messages, schema=schema, parent_call_id=parent, **kwargs)
+        try:
+            return call, schema.model_validate_json(call.output)
+        except ValidationError as error:
+            log.warning("%s: invalid %s JSON (attempt %d/%d, %d tokens): %s", agent, schema.__name__,
+                        attempt, attempts, call.tokens_out, str(error).splitlines()[0])
+            parent = call.id
+    raise StructuredOutputError(f"{agent}: no valid {schema.__name__} after {attempts} attempts")
 
 
 async def _smoke_test(n: int = 10) -> None:
