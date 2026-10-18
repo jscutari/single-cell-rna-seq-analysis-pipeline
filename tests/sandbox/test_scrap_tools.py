@@ -108,7 +108,7 @@ def test_genesets(tmp_path, monkeypatch):
     assert st.list_genesets("Lib", contains="interferon") == ["Interferon Alpha Response"]
     assert st.load_geneset("Lib", "Interferon Alpha Response") == ["ISG15", "IFI6"]
     with pytest.raises(KeyError, match="list_genesets"):
-        st.load_geneset("Lib", "INTERFERON_ALPHA_RESPONSE")
+        st.load_geneset("Lib", "Oxidative Phosphorylation")  # not in the library at all
 
 
 def test_baked_in_gene_sets_exist():
