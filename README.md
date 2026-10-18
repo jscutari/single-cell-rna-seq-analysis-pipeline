@@ -118,6 +118,8 @@ flowchart TB
     FS -->|files, findings| API
 ```
 
+[Screenshot: a finding card with chart, p_adj, effect size and "Critic approved"]
+
 ## Why NVIDIA Nemotron Lightning
 
 Running eight agent roles across parallel hypotheses means many model calls at once, so the model must be cheap and fast without being weak. **Nemotron Lightning** is a mixture-of-experts model with 31.6B parameters, of which only 3.6B are active for each token. It brings the knowledge of a large model to every call at roughly the compute cost of a small one, which is what lets three hypotheses run side by side on one GPU.
@@ -147,23 +149,6 @@ flowchart LR
 - **NVFP4 weights** keep the model compact, leaving GPU memory for many requests at once.
 
 **NVIDIA Brev** makes the stack reproducible: one script rebuilds the box from scratch.
-
-## Results
-
-On the COVID-19 PBMC benchmark (`bench/results/covid_latest.md`):
-
-| | Multi-agent | Critic off | Single agent |
-| --- | --- | --- | --- |
-| Paper findings recovered (of 3) | 1 | 1 | 0 |
-| Accepted and significant findings | 2 | 2 | 0 |
-| Rejected / revised by the critic | 3 / 2 | – | – |
-| Code cells run (% ok) | 37 (73%) | 31 (55%) | 15 (93%) |
-| Generated tokens/s | 922 | 1,218 | 141 |
-| Peak concurrent requests | 5 | 5 | 1 |
-
-The multi-agent system recovered the paper's interferon signature, which a single agent missed, and its critic filtered out weak results.
-
-[Screenshot: a finding card with chart, p_adj, effect size and "Critic approved"]
 
 ## Open data
 
