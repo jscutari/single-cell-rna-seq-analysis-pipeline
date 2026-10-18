@@ -122,6 +122,16 @@ export async function getOverview(projectId: string): Promise<ProjectOverview | 
   return toOverview(state.results);
 }
 
+/** Makes `file` (an .h5ad) the project's dataset; the next run analyzes it. */
+export async function uploadDataset(projectId: string, file: File): Promise<void> {
+  if (USE_MOCK) return;
+  await request(`/projects/${projectId}/dataset`, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": "application/octet-stream" },
+  });
+}
+
 export async function startRun(projectId: string): Promise<RunStatus> {
   if (USE_MOCK) return "running";
   return (await request<{ status: RunStatus }>(`/projects/${projectId}/start`, { method: "POST" })).status;

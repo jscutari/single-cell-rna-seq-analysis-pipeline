@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   startRun: vi.fn(),
   stopRun: vi.fn(),
+  uploadDataset: vi.fn(),
 }));
 vi.mock("./api/client", () => ({
   USE_MOCK: false,
@@ -104,6 +105,9 @@ beforeEach(() => {
   api.sendMessage.mockResolvedValue(undefined);
   api.startRun.mockResolvedValue("running");
   api.stopRun.mockResolvedValue("stopped");
+  api.uploadDataset.mockResolvedValue(undefined);
+  URL.createObjectURL = vi.fn(() => "blob:x");
+  URL.revokeObjectURL = vi.fn();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -333,5 +337,37 @@ describe("results from the backend", () => {
     vi.useRealTimers();
     await act(async () => {});
     expect(Array.from(document.querySelectorAll(".file-name")).map((f) => f.textContent)).toEqual(["mine.txt", "report.md"]);
+  });
+});
+
+
+describe("dataset upload", () => {
+  it("an .h5ad attached in the chat is uploaded, and the message waits for it", async () => {
+    let finish!: () => void;
+    api.uploadDataset.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
+    await renderApp();
+    await openProject();
+    await click(screen.getByRole("button", { name: "Chat 1" }));
+    const picked = new File(["x"], "wilk.h5ad");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Choose files to attach"), { target: { files: [picked] } });
+    });
+    expect(api.uploadDataset).toHaveBeenCalledWith(PROJECT.id, picked);
+    expect(bubbles().at(-1)).toContain("Uploading dataset wilk.h5ad");
+    fireEvent.change(input()!, { target: { value: "Analyze this" } });
+    await click(screen.getByLabelText("Send message"));
+    expect(api.sendMessage).not.toHaveBeenCalled(); // still uploading
+    await act(async () => finish());
+    expect(api.sendMessage).toHaveBeenCalledTimes(1);
+    expect(bubbles().some((b) => b?.startsWith("✅ Dataset uploaded"))).toBe(true);
+  });
+
+  it("other files are not sent as the dataset", async () => {
+    await renderApp();
+    await openProject();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload files"), { target: { files: [new File(["%PDF"], "paper.pdf")] } });
+    });
+    expect(api.uploadDataset).not.toHaveBeenCalled();
   });
 });
