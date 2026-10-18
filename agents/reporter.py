@@ -35,7 +35,9 @@ async def answer(project_id: str, prefix: str, background: str, hypotheses: list
                  progress: str = "") -> str:
     convo = "\n".join(f"{role}: {text}" for role, text in history[-8:]) or "(none)"
     user = (f"Progress: {progress or 'unknown'}\n\n{_results(background, hypotheses, findings)}"
-            f"\n\nRecent chat:\n{convo}\n\nQuestion: {question}")
+            f"\n\nRecent chat:\n{convo}\n\nQuestion: {question}\n\nAnswer the question directly in at most "
+            "200 words (short paragraphs or a few bullets; no headings, no tables) unless the user asks for "
+            "more detail. Take donor counts from the findings, not from the dataset summary.")
     call = await chat("reporter", prompting.messages(prefix, "reporter", user),
                       project_id=project_id, reasoning=False)
     return call.output.strip()
