@@ -143,3 +143,37 @@ def test_unwritable_tables_dir_never_breaks_the_analysis(adata, tmp_path, monkey
     monkeypatch.setattr(st, "TABLES_DIR", blocker / "tables")
     df = st.donor_scores(adata, ["GENE0"], "donor_id", "disease", "cell.type", "Mono")
     assert len(df) == 6
+
+
+# --- forgiving helpers (the slips models make most) ---
+
+def test_load_geneset_accepts_msigdb_style_and_partial_names(tmp_path, monkeypatch, capsys):
+    (tmp_path / "Lib.gmt").write_text("Interferon Alpha Response\t\tISG15\tIFI6\nTNF-alpha Signaling via NF-kB\t\tTNF\tNFKBIA\n")
+    monkeypatch.setattr(st, "GENESETS_DIR", tmp_path)
+    assert st.load_geneset("Lib", "HALLMARK_INTERFERON_ALPHA_RESPONSE") == ["ISG15", "IFI6"]
+    assert st.load_geneset("Lib", "interferon alpha") == ["ISG15", "IFI6"]  # unique partial match
+    assert "using 'Interferon Alpha Response'" in capsys.readouterr().out
+    assert st.load_geneset("Lib", "HALLMARK_TNF_ALPHA_SIGNALING_VIA_NF_KB") == ["TNF", "NFKBIA"]
+    with pytest.raises(KeyError, match="Close matches"):
+        st.load_geneset("Lib", "a")  # ambiguous: matches both
+
+
+def test_celltype_without_its_column_is_found(adata):
+    counts, meta = st.pseudobulk(adata, "donor_id", "disease", celltype="Mono")
+    assert meta["n_cells"].sum() == (adata.obs["cell.type"] == "Mono").sum()
+
+
+def test_unknown_celltype_lists_the_real_labels(adata):
+    with pytest.raises(KeyError, match="No obs column contains"):
+        st.pseudobulk(adata, "donor_id", "disease", celltype="CD14 Monocyte")
+    with pytest.raises(KeyError, match="Values include"):
+        st.pseudobulk(adata, "donor_id", "disease", "cell.type", "CD14 Monocyte")
+
+
+def test_plot_groups_draws_and_prints(adata, capsys):
+    import matplotlib
+    matplotlib.use("Agg")
+    df = st.donor_scores(adata, ["GENE0"], "donor_id", "disease", "cell.type", "Mono")
+    st.plot_groups(df, title="GENE0")
+    out = capsys.readouterr().out
+    assert "COVID-19" in out and "normal" in out
