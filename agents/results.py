@@ -150,7 +150,9 @@ def list_files(project_dir: Path, project_id: str, summary: dict | None, brief: 
     add(root / "background.md", "Literature background")
     add(root / "report.md", "Final report")
     for hdir in sorted((root / "hypotheses").glob("*")):
-        title = titles.get(hdir.name, hdir.name)
+        if hdir.name not in titles:  # only this project's hypotheses, not leftovers from tests
+            continue
+        title = titles[hdir.name]
         add(hdir / f"{hdir.name}.ipynb", f"Notebook: {title}")
         for fig in sorted((hdir / "figures").glob("*.png")):
             add(fig, f"Figure (cell {int(fig.stem[4:7])}): {title}" if fig.stem.startswith("cell") else title)

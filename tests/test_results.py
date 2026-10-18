@@ -111,8 +111,10 @@ def test_list_files_inventory(tmp_path, summary, brief):
     f = by_path["report.md"]
     assert set(f) == {"id", "project_id", "name", "kind", "size_bytes", "path", "added_at", "summary"}
     assert f["size_bytes"] == 10 and f["added_at"].endswith("+00:00")
-    again = results.list_files(tmp_path, "p1", summary, brief, {})
+    again = results.list_files(tmp_path, "p1", summary, brief, {"h1": "IFN is up"})
     assert {x["id"] for x in again} == {x["id"] for x in files}  # ids are stable
+    unknown = results.list_files(tmp_path, "p1", summary, brief, {})
+    assert not any(x["path"].startswith("hypotheses/") for x in unknown)  # leftover folders are not listed
 
 
 # --- analysis records and the project snapshot ---

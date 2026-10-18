@@ -28,7 +28,7 @@ from bench.baseline_single_agent import run_baseline
 from shared.events import Event, EventType, set_sink
 from shared.schemas import Brief, Finding, Hypothesis
 
-DATA = Path("/home/ubuntu/workspace/data/covid_pbmc")
+DATA = Path("/home/ubuntu/workspace/data/_reference/covid_pbmc")
 RESULTS = Path(__file__).parent / "results"
 GOALS = ("Characterize how the peripheral immune response differs between hospitalized COVID-19 "
          "patients and healthy donors: gene programs within cell types and shifts in cell-type composition.")

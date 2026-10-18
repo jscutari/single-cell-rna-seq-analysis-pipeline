@@ -231,7 +231,7 @@ async def stop_all() -> None:
 
 async def _smoke_test() -> None:
     set_sink(lambda e: print(f"  event: {e.type} cell={e.payload.get('index')} {e.payload.get('status')}"))
-    project_dir = Path("/home/ubuntu/workspace/data/covid_pbmc")
+    project_dir = Path("/home/ubuntu/workspace/data/_reference/covid_pbmc")
     hid = "smoketest"
     await start_kernel(hid, "smoke", project_dir)
     try:

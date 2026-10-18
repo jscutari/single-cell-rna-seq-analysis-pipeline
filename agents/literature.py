@@ -252,7 +252,7 @@ async def _demo() -> None:
     import time
 
     # Publishers block scripted downloads; save the PDF from a browser and copy it here.
-    project_dir = Path("/home/ubuntu/workspace/data/covid_pbmc")
+    project_dir = Path("/home/ubuntu/workspace/data/_reference/covid_pbmc")
     pdf = project_dir / "sources" / "wilk2020.pdf"
     t = time.perf_counter()
     index = Index(project_dir)

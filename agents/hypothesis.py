@@ -258,7 +258,7 @@ async def _demo() -> None:
                   celltype_column="cell.type.coarse", gene_id_format="symbol",
                   goals="Characterize how the innate immune response in blood differs between "
                         "hospitalized COVID-19 patients and healthy donors.")
-    ctx = RunContext.load("covid-demo", "/home/ubuntu/workspace/data/covid_pbmc", brief)
+    ctx = RunContext.load("covid-demo", "/home/ubuntu/workspace/data/_reference/covid_pbmc", brief)
     start = time.perf_counter()
     [h] = await plan_hypotheses(ctx, n=1, background=(
         "Severe viral infections typically induce type I interferon signaling in monocytes."))
