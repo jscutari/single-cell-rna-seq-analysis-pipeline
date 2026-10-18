@@ -61,3 +61,10 @@ def test_report_tables(tmp_path):
     out = tmp_path / "s.jsonl"
     out.write_text("\n".join(json.dumps(r) for r in rows))
     assert len(suite.load(out)) == 4
+
+
+def test_report_drops_failures_that_were_redone():
+    base = {"n_findings": 1, "accepted_significant": 0, "rejected_by_critic": 0, "recovered": []}
+    rows = [{"dataset": "wilk", "variant": "multi", "repeat": 1, "error": "StructuredOutputError: x", **base},
+            {"dataset": "wilk", "variant": "multi", "repeat": 1, "error": None, **base}]
+    assert "failed" not in suite.report(rows)

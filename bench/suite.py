@@ -242,7 +242,8 @@ def report(rows: list[dict]) -> str:
                 x = mean([r.get(key) for r in rs])
             vals.append(fmt(x, digits))
         lines.append(f"| {label} | " + " | ".join(vals) + " |")
-    errors = [r for r in rows if r.get("error")]
+    redone = {(r["dataset"], r["variant"], r["repeat"]) for r in ok}
+    errors = [r for r in rows if r.get("error") and (r["dataset"], r["variant"], r["repeat"]) not in redone]
     if errors:
         lines += ["", f"{len(errors)} run(s) failed: " + "; ".join(f"{r['dataset']}/{r['variant']}/r{r['repeat']}: {r['error'][:80]}" for r in errors)]
     return "\n".join(lines) + "\n"
