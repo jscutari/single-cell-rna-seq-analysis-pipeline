@@ -8,7 +8,8 @@ describe("groupFiles", () => {
     const groups = groupFiles(files, mockFindingsFor("p1"));
     const byGroup = Object.fromEntries(groups.map((g) => [g.title, g.rows.map((r) => r.name)]));
     expect(byGroup["Papers & reports"]).toEqual(["wilk_2020_covid_pbmc.pdf", "analysis_notes.txt", "report.md"]);
-    expect(byGroup["Figures"]).toEqual(["umap_clusters.svg", "ifn_alpha_donor_scores.png"]);
+    // Figures are named by what they show (their summary), sorted so a finding's figures sit together.
+    expect(byGroup["Figures"]).toEqual(["Figure: IFN-α score per donor", "UMAP coloured by cell type"]);
     expect(byGroup["Code"]).toEqual(["ifn_alpha_cd14_monocytes.ipynb"]);
     expect(byGroup["Tables"]).toEqual(["de_results.csv"]);
     expect(byGroup["Data"]).toEqual(["processed.h5ad"]);

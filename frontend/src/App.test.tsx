@@ -275,16 +275,19 @@ describe("project page", () => {
   it("lists the project's files and key findings with charts, and has no chat box", async () => {
     await renderApp();
     await click(projectButton("Project 1"));
+    // Grouped: figures as thumbnails first, then papers & reports, code, tables, data.
+    const groups = screen.getAllByRole("group").map((g) => g.getAttribute("aria-label"));
+    expect(groups).toEqual(["Figures", "Papers & reports", "Code", "Tables", "Data"]);
+    const figures = document.querySelectorAll(".figure-tile .figure-caption");
+    expect(Array.from(figures).map((f) => f.textContent)).toEqual(["Figure: IFN-α score per donor", "UMAP coloured by cell type"]);
     const files = document.querySelectorAll(".file-row");
     expect(Array.from(files).map((f) => f.querySelector(".file-name")!.textContent)).toEqual([
-      "processed.h5ad",
       "wilk_2020_covid_pbmc.pdf",
-      "de_results.csv",
-      "umap_clusters.svg",
       "analysis_notes.txt",
       "report.md",
       "ifn_alpha_cd14_monocytes.ipynb",
-      "ifn_alpha_donor_scores.png",
+      "de_results.csv",
+      "processed.h5ad",
     ]);
     const findings = screen.getAllByRole("article");
     expect(findings).toHaveLength(3);
@@ -358,7 +361,8 @@ describe("file preview", () => {
     await act(async () => {
       fireEvent.change(upload, { target: { files: [picked] } });
     });
-    expect(document.querySelector(".file-row .file-name")!.textContent).toBe("my_plot.svg");
+    const captions = Array.from(document.querySelectorAll(".figure-tile .figure-caption")).map((c) => c.textContent);
+    expect(captions).toContain("my_plot.svg");
     expect(panel()!.getAttribute("aria-label")).toBe("Preview of my_plot.svg");
     expect(screen.getByRole("img", { name: "my_plot.svg" }).getAttribute("src")).toBe("blob:mock-1");
   });

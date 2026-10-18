@@ -2,6 +2,7 @@ import { formatBytes, formatP } from "../../lib/format";
 import { relativeTime } from "../../lib/relativeTime";
 import type { ProjectSummary } from "../../types/schemas";
 import { datasetLine } from "../../lib/overview";
+import { figureCaption, groupProjectFiles } from "../../lib/files";
 import type { FindingCard, ProjectFile, ProjectOverview, RunInfo } from "../../types/ui";
 import { FindingChart } from "../Charts/FindingChart";
 import { useRef } from "react";
@@ -251,29 +252,62 @@ export function ProjectView({
           </div>
         </div>
         {files.length ? (
-          <ul className="file-list">
-            {files.map((file) => (
-              <li key={file.id}>
-                <button
-                  type="button"
-                  className={file.id === activeFileId ? "file-row file-row--active" : "file-row"}
-                  aria-current={file.id === activeFileId ? "true" : undefined}
-                  onClick={() => onOpenFile?.(file)}
-                >
-                  <span className={`file-icon file-icon--${file.kind}`}>
-                    <FileIcon />
-                  </span>
-                  <span className="file-main">
-                    <span className="file-name">{file.name}</span>
-                    {file.summary && <span className="file-summary">{file.summary}</span>}
-                  </span>
-                  <span className="file-badge">{KIND_LABEL[file.kind]}</span>
-                  <span className="file-size">{formatBytes(file.size_bytes)}</span>
-                  <span className="file-time">{relativeTime(file.added_at)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          groupProjectFiles(files).map((group) => (
+            <div key={group.id} className="file-group" role="group" aria-label={group.title}>
+              <h3 className="file-group-title">
+                {group.title} <span className="file-group-count">{group.files.length}</span>
+              </h3>
+              {group.id === "figures" ? (
+                <ul className="figure-grid">
+                  {group.files.map((file) => {
+                    const { caption, detail } = figureCaption(file);
+                    return (
+                      <li key={file.id}>
+                        <button
+                          type="button"
+                          className={file.id === activeFileId ? "figure-tile figure-tile--active" : "figure-tile"}
+                          aria-current={file.id === activeFileId ? "true" : undefined}
+                          aria-label={`${caption} (${file.name})`}
+                          title={caption}
+                          onClick={() => onOpenFile?.(file)}
+                        >
+                          <span className="figure-thumb">
+                            {file.url ? <img src={file.url} alt="" loading="lazy" /> : <FileIcon />}
+                          </span>
+                          <span className="figure-caption">{caption}</span>
+                          {detail && <span className="figure-detail">{detail}</span>}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <ul className="file-list">
+                  {group.files.map((file) => (
+                    <li key={file.id}>
+                      <button
+                        type="button"
+                        className={file.id === activeFileId ? "file-row file-row--active" : "file-row"}
+                        aria-current={file.id === activeFileId ? "true" : undefined}
+                        onClick={() => onOpenFile?.(file)}
+                      >
+                        <span className={`file-icon file-icon--${file.kind}`}>
+                          <FileIcon />
+                        </span>
+                        <span className="file-main">
+                          <span className="file-name">{file.name}</span>
+                          {file.summary && <span className="file-summary">{file.summary}</span>}
+                        </span>
+                        <span className="file-badge">{KIND_LABEL[file.kind]}</span>
+                        <span className="file-size">{formatBytes(file.size_bytes)}</span>
+                        <span className="file-time">{relativeTime(file.added_at)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))
         ) : (
           <p className="project-empty">Upload a dataset or paper to get started.</p>
         )}
