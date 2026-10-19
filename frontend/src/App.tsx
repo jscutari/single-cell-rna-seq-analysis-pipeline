@@ -11,10 +11,12 @@ import {
   sendMessage,
   startRun,
   stopRun,
+  uploadDataset,
 } from "./api/client";
 import { useProjectStream } from "./api/useProjectStream";
 import { chatTitle } from "./lib/chatTitle";
 import { fileKind } from "./lib/files";
+import { formatBytes } from "./lib/format";
 import { newId } from "./lib/ids";
 import { ChatView } from "./components/ChatView/ChatView";
 import { Composer, type Attachment } from "./components/Composer/Composer";
@@ -55,6 +57,21 @@ function store(key: string, value: string) {
     /* storage unavailable: fine for this session */
   }
 }
+// The backend keeps one conversation per project. Extra chats live in this browser:
+// their list per project, and which chat each message went to (default: the project's main chat).
+const CHATS_KEY = "scrap.chats";
+const CHAT_OF_KEY = "scrap.chatOfMessage";
+function readJson<T>(key: string): Partial<Record<string, T>> {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "{}") ?? {};
+  } catch {
+    return {};
+  }
+}
+function storeJson(key: string, value: unknown) {
+  store(key, JSON.stringify(value));
+}
+
 function readSidebarCollapsed(): boolean {
   try {
     return localStorage.getItem(SIDEBAR_KEY) === "1";
@@ -98,6 +115,10 @@ export default function App() {
   // (the contract has no chat_id yet), so the oldest waiting chat gets the next reply.
   const waiting = useRef(new Map<string, { chatId: string; timer: Timer }[]>());
   const chatsRequested = useRef(new Set<string>());
+  /** Dataset uploads in flight per project; a message waits for them so the run sees the new data. */
+  const pendingUploads = useRef(new Map<string, Promise<void>[]>());
+  /** Projects whose saved chats are loaded (until then, don't overwrite what this browser saved). */
+  const chatsLoaded = useRef(new Set<string>());
   const projectDataRequested = useRef(new Set<string>());
   const chatsRef = useRef<Record<string, Chat[]>>({});
   const takenNames = useRef(new Set<string>());
@@ -170,6 +191,10 @@ export default function App() {
     const next = update(chatsRef.current[projectId] ?? []);
     chatsRef.current = { ...chatsRef.current, [projectId]: next };
     setChatsByProject(chatsRef.current);
+    if (!USE_MOCK && chatsLoaded.current.has(projectId)) {
+      const main = mainChat(projectId).id;
+      storeJson(CHATS_KEY, { ...readJson<Chat[]>(CHATS_KEY), [projectId]: next.filter((c) => c.id !== main) });
+    }
   };
 
   /** Adds messages to a chat, skipping ids already shown. Returns how many were new. */
@@ -177,6 +202,11 @@ export default function App() {
     const fresh = incoming.filter((m) => !seenMessageIds.current.has(m.id));
     fresh.forEach((m) => seenMessageIds.current.add(m.id));
     if (!fresh.length) return 0;
+    if (!USE_MOCK && chatId !== mainChat(fresh[0].project_id).id) {
+      const chatOf = readJson<string>(CHAT_OF_KEY);
+      fresh.forEach((m) => (chatOf[m.id] = chatId));
+      storeJson(CHAT_OF_KEY, chatOf);
+    }
     setMessagesByChat((all) => {
       const list = all[chatId] ?? [];
       return { ...all, [chatId]: position === "append" ? [...list, ...fresh] : [...fresh, ...list] };
@@ -189,9 +219,24 @@ export default function App() {
     if (chatsRequested.current.has(projectId)) return;
     chatsRequested.current.add(projectId);
     listChats(projectId)
-      .then(({ chats, messages, run, lastEventId: last }) => {
+      .then(({ chats: loaded, messages: loadedMessages, run, lastEventId: last }) => {
         if (run) setRunByProject((all) => ({ ...all, [projectId]: run }));
         if (last !== undefined) setLastEventId((all) => ({ ...all, [projectId]: last }));
+        let chats = loaded;
+        let messages = loadedMessages;
+        if (!USE_MOCK) {
+          // Put back the chats made in this browser, and each saved message in its chat.
+          chats = [...loaded, ...(readJson<Chat[]>(CHATS_KEY)[projectId] ?? [])];
+          const chatOf = readJson<string>(CHAT_OF_KEY);
+          const known = new Set(chats.map((c) => c.id));
+          messages = {};
+          for (const [chatId, history] of Object.entries(loadedMessages))
+            for (const m of history) {
+              const target = chatOf[m.id] && known.has(chatOf[m.id]!) ? chatOf[m.id]! : chatId;
+              (messages[target] ??= []).push(m);
+            }
+          chatsLoaded.current.add(projectId);
+        }
         setChats(projectId, (local) => {
           // Chats created before the saved ones arrived go after them; numbered ones are renumbered.
           const extra = local.filter((c) => !chats.some((x) => x.id === c.id));
@@ -233,7 +278,12 @@ export default function App() {
   };
 
   /** Adds local files to a project (kept in memory until the backend accepts uploads). */
-  const uploadFiles = (projectId: string, picked: File[], preview = true): ProjectFile[] => {
+  const uploadFiles = (
+    projectId: string,
+    picked: File[],
+    preview = true,
+    onDataset?: (error?: Error) => void,
+  ): ProjectFile[] => {
     const added: ProjectFile[] = picked.map((file) => {
       const url = URL.createObjectURL(file);
       objectUrls.current.push(url);
@@ -249,12 +299,51 @@ export default function App() {
     });
     setFilesByProject((all) => ({ ...all, [projectId]: [...added, ...(all[projectId] ?? [])] }));
     if (preview) setPreviewFileId(added[0].id);
+    added.forEach((f, i) => {
+      if (f.kind === "h5ad" && !USE_MOCK) sendDataset(projectId, f, picked[i], onDataset);
+    });
     return added;
+  };
+
+  const setFileSummary = (projectId: string, fileId: string, summary: string) =>
+    setFilesByProject((all) => ({
+      ...all,
+      [projectId]: (all[projectId] ?? []).map((f) => (f.id === fileId ? { ...f, summary } : f)),
+    }));
+
+  /** Sends an .h5ad to the backend as the project's dataset. Messages wait for it (see handleSend). */
+  const sendDataset = (projectId: string, file: ProjectFile, raw: File, onDone?: (error?: Error) => void) => {
+    setFileSummary(projectId, file.id, "Uploading dataset…");
+    const upload = uploadDataset(projectId, raw).then(
+      () => {
+        setFileSummary(projectId, file.id, "Dataset · the next run analyzes this file");
+        onDone?.();
+      },
+      (error: Error) => {
+        console.error("Could not upload dataset", error);
+        setFileSummary(projectId, file.id, `Upload failed: ${error.message}`);
+        onDone?.(error);
+      },
+    );
+    pendingUploads.current.set(projectId, [...(pendingUploads.current.get(projectId) ?? []), upload]);
+    upload.finally(() =>
+      pendingUploads.current.set(projectId, (pendingUploads.current.get(projectId) ?? []).filter((u) => u !== upload)),
+    );
   };
 
   /** Files dropped or picked in a chat: added to the project and attached to the next message. */
   const attachFiles = (projectId: string, chatId: string, picked: File[]) => {
-    const added = uploadFiles(projectId, picked, false);
+    const datasets = picked.filter((f) => fileKind(f.name) === "h5ad" && !USE_MOCK);
+    const status = (text: string) =>
+      addMessages(chatId, [{ id: newId(), project_id: projectId, role: "assistant", content: text, created_at: new Date().toISOString() }]);
+    datasets.forEach((f) => status(`Uploading dataset ${f.name} (${formatBytes(f.size)})…`));
+    const added = uploadFiles(projectId, picked, false, (error) =>
+      status(
+        error
+          ? `⚠️ The dataset upload failed: ${error.message}`
+          : "✅ Dataset uploaded. Tell me what you'd like to learn from it, or press Start run on the project page.",
+      ),
+    );
     setAttachmentsByChat((all) => ({
       ...all,
       [chatId]: [...(all[chatId] ?? []), ...added.map((f) => ({ id: f.id, name: f.name }))],
@@ -287,7 +376,9 @@ export default function App() {
 
   const handleRun = (projectId: string, action: "start" | "stop") => {
     setRunError((all) => ({ ...all, [projectId]: undefined }));
-    (action === "start" ? startRun(projectId) : stopRun(projectId))
+    const uploads = action === "start" ? (pendingUploads.current.get(projectId) ?? []) : [];
+    const act = () => (action === "start" ? startRun(projectId) : stopRun(projectId));
+    (uploads.length ? Promise.allSettled(uploads).then(act) : act())
       .then((status) => setRun(projectId, action === "start" ? { status, stage: null } : { status }))
       .catch((error: Error) => setRunError((all) => ({ ...all, [projectId]: error.message })));
   };
@@ -338,15 +429,9 @@ export default function App() {
     setExpandedProjectId(projectId);
   };
 
-  /** Creates "Chat N" in a project and opens it (with the real backend: opens its one chat). */
+  /** Creates "Chat N" in a project and opens it. */
   const newChat = (projectId: string): string => {
     ensureChats(projectId);
-    if (!USE_MOCK) {
-      const chat = mainChat(projectId);
-      setChats(projectId, (chats) => (chats.some((c) => c.id === chat.id) ? chats : [chat, ...chats]));
-      openChat(projectId, chat.id);
-      return chat.id;
-    }
     const chat: Chat = {
       id: newId(),
       project_id: projectId,
@@ -366,6 +451,7 @@ export default function App() {
     try {
       const project = await createProject(name);
       chatsRequested.current.add(project.id); // brand new: nothing to load
+      chatsLoaded.current.add(project.id);
       projectDataRequested.current.add(project.id);
       setChats(project.id, () => []);
       setProjects((list) => [project, ...list]);
@@ -414,7 +500,9 @@ export default function App() {
     const id = newId();
     addMessages(chatId, [{ id, project_id: projectId, role: "user", content, created_at: new Date().toISOString() }]);
     const timer = startWaiting(projectId, chatId);
-    sendMessage(projectId, content, id).catch((error: Error & { status?: number }) => {
+    const uploads = pendingUploads.current.get(projectId) ?? [];
+    const send = () => sendMessage(projectId, content, id);
+    (uploads.length ? Promise.allSettled(uploads).then(send) : send()).catch((error: Error & { status?: number }) => {
       // A refusal the user can act on (e.g. 409 "start a new run") is shown in the chat, not an app error.
       const refused = error.status !== undefined && error.status < 500;
       (refused ? console.warn : console.error)("Could not send message", error);
@@ -523,7 +611,7 @@ export default function App() {
         runError={runError[project.id]}
         onStartRun={() => handleRun(project.id, "start")}
         onStopRun={() => handleRun(project.id, "stop")}
-        onNewChat={USE_MOCK ? () => newChat(project.id) : undefined}
+        onNewChat={() => newChat(project.id)}
       />
     );
     panel = previewFile && <FilePreview file={previewFile} onClose={closePreview} />;
@@ -559,7 +647,6 @@ export default function App() {
         onNewChat={newChat}
         onRenameChat={renameChat}
         onNewProject={handleNewProject}
-        allowNewChat={USE_MOCK}
         onHome={goHome}
       />
       <SpiralBinding />

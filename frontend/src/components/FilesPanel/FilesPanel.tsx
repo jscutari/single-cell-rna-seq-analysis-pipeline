@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { formatP } from "../../lib/format";
+import { figureCaption } from "../../lib/files";
 import type { FindingCard, ProjectFile } from "../../types/ui";
 import { FindingChart } from "../Charts/FindingChart";
 import { FilePreview, PreviewFrame } from "../FilePreview/FilePreview";
@@ -21,7 +22,7 @@ interface FilesPanelProps {
 interface Group {
   title: string;
   icon: ReactNode;
-  rows: { key: string; item: PanelItem; name: string; detail?: string; kind: string }[];
+  rows: { key: string; item: PanelItem; name: string; detail?: string; kind: string; thumb?: string }[];
 }
 
 const isReport = (f: ProjectFile) => f.kind === "text" && /\.(md|txt)$/i.test(f.name);
@@ -39,7 +40,14 @@ export function groupFiles(files: ProjectFile[], findings: FindingCard[]): Group
         c.chart ? [{ key: `chart-${c.finding.id}`, item: { kind: "chart" as const, id: c.finding.id }, name: c.finding.claim, kind: c.chart.type }] : [],
       ),
     },
-    { title: "Figures", icon: <ChartIcon />, rows: files.filter((f) => f.kind === "image").map(fileRow) },
+    {
+      title: "Figures",
+      icon: <ChartIcon />,
+      rows: files
+        .filter((f) => f.kind === "image")
+        .map((f) => ({ ...fileRow(f), name: figureCaption(f).caption, detail: figureCaption(f).detail ?? f.name, thumb: f.url ?? undefined }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    },
     { title: "Code", icon: <CodeIcon />, rows: files.filter((f) => f.kind === "notebook").map(fileRow) },
     { title: "Tables", icon: <FileIcon />, rows: files.filter((f) => f.kind === "csv" || f.kind === "tsv").map(fileRow) },
     {
@@ -90,10 +98,11 @@ export function FilesPanel({ projectName, files, findings, selected, onSelect, o
               <span>{group.title}</span>
               <span className="panel-group-count">{group.rows.length}</span>
             </h3>
-            <ul className="panel-list">
+            <ul className={group.title === "Figures" ? "panel-list panel-list--figures" : "panel-list"}>
               {group.rows.map((row) => (
                 <li key={row.key}>
                   <button type="button" className="panel-row" onClick={() => onSelect(row.item)} title={row.name}>
+                    {row.thumb && <img className="panel-thumb" src={row.thumb} alt="" loading="lazy" />}
                     <span className="panel-row-name">{row.name}</span>
                     {row.detail && <span className="panel-row-detail">{row.detail}</span>}
                   </button>

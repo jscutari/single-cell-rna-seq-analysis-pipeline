@@ -42,6 +42,7 @@ PREAMBLE = """
 %matplotlib inline
 import warnings; warnings.filterwarnings("ignore")
 import numpy as np, pandas as pd, scanpy as sc, matplotlib.pyplot as plt
+from scipy import stats
 pd.set_option("display.width", 200); pd.set_option("display.max_columns", 30)
 plt.rcParams["figure.dpi"] = 100
 from scrap_tools import *  # pseudobulk, deseq, donor_scores, compare_groups, load_geneset, ...

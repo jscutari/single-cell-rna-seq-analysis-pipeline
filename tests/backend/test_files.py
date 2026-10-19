@@ -105,3 +105,43 @@ def test_resolve_inside_accepts_nested_files(tmp_path):
     (tmp_path / "a").mkdir()
     (tmp_path / "a" / "b.txt").write_text("x")
     assert resolve_inside(tmp_path, "a/b.txt") == (tmp_path / "a" / "b.txt").resolve()
+
+
+# --- dataset upload ---
+
+HDF5 = b"\x89HDF\r\n\x1a\n" + b"\0" * 100
+
+
+def test_upload_dataset_replaces_the_preset_link(client, data_root):
+    from backend.projects import PRESET_ID
+
+    root = data_root / PRESET_ID
+    preset_inode = (root / "dataset.h5ad").stat().st_ino
+    (root / "processed.h5ad").write_bytes(b"old")
+    (root / "dataset_summary.json").write_text("{}")
+    r = client.put(f"/api/projects/{PRESET_ID}/dataset", content=HDF5)
+    assert r.status_code == 200 and r.json() == {"size_bytes": len(HDF5)}
+    assert (root / "dataset.h5ad").read_bytes() == HDF5
+    assert (root / "dataset.h5ad").stat().st_ino != preset_inode  # replaced, not written through the link
+    assert not (root / "processed.h5ad").exists() and not (root / "dataset_summary.json").exists()
+
+
+def test_upload_rejects_non_h5ad(client, data_root):
+    from backend.projects import PRESET_ID
+
+    before = (data_root / PRESET_ID / "dataset.h5ad").read_bytes()
+    r = client.put(f"/api/projects/{PRESET_ID}/dataset", content=b"hello,world\n")
+    assert r.status_code == 422
+    assert (data_root / PRESET_ID / "dataset.h5ad").read_bytes() == before
+    assert not (data_root / PRESET_ID / "dataset.h5ad.uploading").exists()
+
+
+def test_upload_refused_while_running(client):
+    from backend.projects import PRESET_ID
+
+    client.app.state.hub.publish("run_status", PRESET_ID, {"status": "running"})
+    assert client.put(f"/api/projects/{PRESET_ID}/dataset", content=HDF5).status_code == 409
+
+
+def test_upload_to_unknown_project_is_404(client):
+    assert client.put("/api/projects/nope/dataset", content=HDF5).status_code == 404

@@ -262,7 +262,7 @@ async def main(args) -> None:
     done = {(r["dataset"], r["variant"], r["repeat"]) for r in load(out) if not r.get("error")}
     datasets = args.datasets.split(",") if args.datasets else list(REGISTRY) + list(SHUFFLED)
     variants = args.variants.split(",")
-    for repeat in range(1, args.repeats + 1):
+    for repeat in range(args.first_repeat, args.first_repeat + args.repeats):
         for key in datasets:
             if not (DATA_ROOT / "_reference" / key / "dataset_summary.json").exists():
                 print(f"!! {key}: not prepared yet, skipping", flush=True)
@@ -278,6 +278,7 @@ if __name__ == "__main__":
     p.add_argument("--datasets", default="")
     p.add_argument("--variants", default="multi,no_critic,single")
     p.add_argument("--repeats", type=int, default=2)
+    p.add_argument("--first-repeat", type=int, default=1, help="number new repeats from here (keeps older run folders)")
     p.add_argument("--hypotheses", type=int, default=5)
     p.add_argument("--out", default=str(RESULTS / "suite.jsonl"))
     p.add_argument("--report", action="store_true")

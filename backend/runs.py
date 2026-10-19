@@ -7,8 +7,9 @@ status from events and enforces:
   - start/stop are idempotent;
   - the first chat message on a fresh project starts its run;
   - chatting with a run that is no longer in memory (stopped, failed, or
-    finished before a server restart) asks the user to start a new run instead
-    of silently re-running the whole analysis.
+    finished before a server restart) goes to the orchestrator's Q&A when it
+    can answer from the saved results (`can_answer`); otherwise it asks the
+    user to start a new run instead of silently re-running the whole analysis.
 """
 
 import logging
@@ -63,6 +64,12 @@ class RunManager:
         status = self.store.status(project_id)
         if status in ("running", "done"):
             return False
+        # Questions about a stopped, failed or pre-restart run go to the orchestrator's
+        # reporter when it can answer them from the saved results.
+        can_answer = getattr(self.orchestrator, "can_answer", None)
+        if status != "idle" or read_state(self.projects.project_dir(project_id)) is not None:
+            if can_answer is not None and can_answer(project_id):
+                return False
         if status in ("stopped", "failed"):
             raise HTTPException(409, f"This project's run {status}. Start a new run to keep chatting.")
         # idle: never run since the server started

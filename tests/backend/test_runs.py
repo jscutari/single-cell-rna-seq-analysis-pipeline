@@ -201,6 +201,31 @@ def test_chatting_with_a_run_from_before_a_restart_is_409(c, orch, data_root):
     assert orch.calls == []
 
 
+class AnsweringOrchestrator(EmittingOrchestrator):
+    """Like the real orchestrator after a restart: it can answer from saved results."""
+
+    def can_answer(self, pid):
+        return True
+
+    async def handle_user_message(self, pid, text):
+        self.calls.append(("handle_user_message", pid, text))
+
+
+@pytest.mark.parametrize("final", ["stopped", "failed", None])
+def test_questions_about_saved_results_go_to_the_orchestrator(settings, data_root, final):
+    orch = AnsweringOrchestrator()
+    with TestClient(create_app(settings, orchestrator=orch)) as c:
+        if final:
+            c.post(f"{BASE}/start")
+            c.app.state.hub.publish("stage_done", PRESET_ID, {"stage": final, "summary": ""})
+        else:  # finished before a restart
+            (data_root / PRESET_ID / "project_state.json").write_text(json.dumps({"stage": "done", "files": [], "findings": []}))
+        r = c.post(f"{BASE}/messages", json={"content": "What did you find?"})
+        assert r.status_code == 204
+        assert orch.calls[-1] == ("handle_user_message", PRESET_ID, "What did you find?")
+        assert status(c) == (final or "idle")  # answering does not start a run
+
+
 def test_first_message_while_another_project_runs_is_409(c, orch):
     other = other_project(c)
     c.post(f"/api/projects/{other}/start")

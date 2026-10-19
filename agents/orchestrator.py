@@ -64,16 +64,28 @@ _runs: dict[str, _Run] = {}
 
 async def start_run(project_id: str) -> None:
     run = _runs.get(project_id)
-    if run and run.stage not in ("stopped", "failed"):
+    if run and run.stage not in ("stopped", "failed", "done"):
         return
     run = _runs[project_id] = _Run(project_id, DATA_ROOT / project_id)
     _spawn(run, _begin(run))
 
 
+def can_answer(project_id: str) -> bool:
+    """True if questions can be answered without starting a run: a run in memory, or a
+    saved one (project_state.json) whose analysis got going, e.g. before a server restart."""
+    run = _runs.get(project_id)
+    if run is not None:
+        return run.stage not in ("stopped", "failed") or bool(run.prefix)
+    return _restore(project_id) is not None
+
+
 async def handle_user_message(project_id: str, text: str) -> None:
     run = _runs.get(project_id)
     if run is None:
-        raise KeyError(f"No run for project {project_id}; call start_run first.")
+        run = _restore(project_id)
+        if run is None:
+            raise KeyError(f"No run for project {project_id}; call start_run first.")
+        _runs[project_id] = run
     run.chat.append(ChatMessage(project_id=project_id, role=Role.user, content=text))
     if run.stage in ("starting", "preprocess", "intake"):
         _spawn(run, _intake_turn(run))
@@ -186,8 +198,52 @@ async def _answer(run: _Run, text: str) -> None:
         _say(run, f"The analysis hasn't started yet (stage: {run.stage}).")
         return
     history = [(m.role.value, m.content) for m in run.chat[:-1]]
-    _say(run, await reporter.answer(run.project_id, run.prefix, run.background,
-                                    run.hypotheses, run.findings, history, text))
+    try:
+        reply = await reporter.answer(run.project_id, run.prefix, run.background, run.hypotheses,
+                                      run.findings, history, text, progress=_progress(run))
+    except Exception:
+        log.exception("Answer failed for %s", run.project_id)
+        reply = "Sorry, I couldn't answer that just now. Could you ask again?"
+    _say(run, reply)
+
+
+_STAGE_TEXT = {"analysis": "The analysis is still running; hypotheses without a finding are not finished yet.",
+               "done": "The analysis is finished.", "stopped": "The run was stopped before it finished.",
+               "failed": "The run failed before it finished."}
+
+
+def _progress(run: _Run) -> str:
+    """What has been done so far, for the reporter: stage and per-status hypothesis counts."""
+    counts: dict[str, int] = {}
+    for h in run.hypotheses:
+        status = getattr(h.status, "value", h.status)
+        counts[status] = counts.get(status, 0) + 1
+    tally = ", ".join(f"{n} {s}" for s, n in counts.items()) or "none planned yet"
+    lit = f"Literature: background from {len(run.sources)} sources." if run.sources else "Literature: none searched."
+    return f"{_STAGE_TEXT.get(run.stage, f'Stage: {run.stage}.')} Hypotheses: {tally}. {lit}"
+
+
+def _restore(project_id: str) -> _Run | None:
+    """A finished (or interrupted) run rebuilt from project_state.json, for answering questions."""
+    root = DATA_ROOT / project_id
+    try:
+        state = json.loads((root / "project_state.json").read_text())
+        summary = json.loads((root / "dataset_summary.json").read_text())
+    except (OSError, ValueError):
+        return None
+    if not state.get("brief") or not state.get("hypotheses"):
+        return None  # intake never finished: nothing to answer from
+    brief = Brief(**state["brief"])
+    hypotheses, findings = [], []
+    for entry in state["hypotheses"]:
+        hypotheses.append(Hypothesis(**entry["hypothesis"]))
+        if (entry.get("analysis") or {}).get("finding"):
+            findings.append(Finding(**entry["analysis"]["finding"]))
+    stage = "done" if state.get("report") else "stopped"
+    return _Run(project_id, root, stage=stage, summary=summary, brief=brief, hypotheses=hypotheses,
+                findings=findings, background=state.get("background") or "",
+                sources=state.get("sources_searched") or [], report=state.get("report"),
+                prefix=prompting.shared_prefix(summary, brief))
 
 
 # --- helpers ---
