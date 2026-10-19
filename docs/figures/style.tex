@@ -1,0 +1,56 @@
+% Shared style for SCRAP's paper-style figures (16:9, white, muted palette).
+% Each figure: \documentclass[tikz,border=0pt]{standalone} \input{style}
+\usepackage[T1]{fontenc}
+\usepackage[scaled=0.95]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{sfmath}
+\usepackage{xcolor}
+\usepackage{amssymb}
+% Figures read better without hyphenated words.
+\hyphenpenalty=10000 \exhyphenpenalty=10000 \tolerance=9999 \emergencystretch=2em
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds,shapes.geometric,shapes.misc,shadows,decorations.pathreplacing}
+
+% --- palette (muted, colour-blind-safe) ---
+\definecolor{agentfill}{HTML}{DCE8F5}  \definecolor{agentline}{HTML}{3B6EA5}
+\definecolor{datafill}{HTML}{EFEDE8}   \definecolor{dataline}{HTML}{77736B}
+\definecolor{infrafill}{HTML}{E3EFE8}  \definecolor{infraline}{HTML}{4F7F66}
+\definecolor{accent}{HTML}{C8553D}     \definecolor{accentfill}{HTML}{F6E1DB}
+\definecolor{ink}{HTML}{222222}        \definecolor{muted}{HTML}{6B6B6B}
+\definecolor{band}{HTML}{F6F6F4}
+
+% --- canvas: 32 x 18 cm (16:9); 1 cm = 120 px at 3840 x 2160 ---
+\newcommand{\canvas}{\useasboundingbox (0,0) rectangle (32,18);\fill[white] (0,0) rectangle (32,18);}
+\newcommand{\figtitle}[2]{%
+  \node[anchor=north west, font=\bfseries\fontsize{20}{24}\selectfont, text=ink] at (0.9,17.4) {#1};
+  \node[anchor=north west, font=\fontsize{13}{16}\selectfont, text=muted, text width=29cm] at (0.9,16.45) {#2};}
+\newcommand{\figsource}[1]{\node[anchor=north east, font=\fontsize{9}{11}\selectfont, text=muted] at (31.1,17.35) {#1};}
+
+\tikzset{
+  every node/.style={font=\fontsize{12}{14.5}\selectfont, text=ink},
+  box/.style={draw, rounded corners=2.5pt, line width=0.9pt, align=center, inner sep=5pt, minimum height=1.0cm},
+  agent/.style={box, fill=agentfill, draw=agentline},
+  data/.style={box, fill=datafill, draw=dataline, rounded corners=0.5pt},
+  infra/.style={box, fill=infrafill, draw=infraline},
+  critic/.style={box, fill=accentfill, draw=accent, line width=1.1pt},
+  store/.style={cylinder, shape border rotate=90, aspect=0.18, draw=infraline, fill=infrafill, line width=0.9pt, align=center, inner sep=4pt},
+  stage/.style={font=\bfseries\fontsize{13}{15}\selectfont, text=agentline},
+  note/.style={font=\fontsize{10.5}{13}\selectfont, text=muted, align=left},
+  flow/.style={-{Stealth[length=2.6mm,width=2mm]}, line width=0.9pt, draw=ink},
+  dataflow/.style={flow, dashed, draw=dataline},
+  loopflow/.style={flow, draw=accent},
+  group/.style={draw=muted!60, dashed, rounded corners=6pt, line width=0.7pt},
+  lane/.style={draw=agentline!45, fill=white, rounded corners=5pt, line width=0.7pt},
+  edgelabel/.style={font=\fontsize{10}{12}\selectfont, text=muted, fill=white, inner sep=1.5pt},
+}
+
+% --- legend (bottom-left) ---
+\newcommand{\legend}[1][0.9]{%
+  \begin{scope}[shift={(#1,0.45)}, every node/.style={font=\fontsize{10}{12}\selectfont, text=muted}]
+    \node[agent, minimum width=0.55cm, minimum height=0.35cm, inner sep=0] (la) at (0.3,0.2) {}; \node[anchor=west] at (0.65,0.2) {agent (Nemotron Lightning)};
+    \node[data, minimum width=0.55cm, minimum height=0.35cm, inner sep=0] at (6.0,0.2) {}; \node[anchor=west] at (6.35,0.2) {data / artefact};
+    \node[infra, minimum width=0.55cm, minimum height=0.35cm, inner sep=0] at (9.9,0.2) {}; \node[anchor=west] at (10.25,0.2) {infrastructure};
+    \node[critic, minimum width=0.55cm, minimum height=0.35cm, inner sep=0] at (13.7,0.2) {}; \node[anchor=west] at (14.05,0.2) {verification};
+    \draw[flow] (16.9,0.2) -- (17.8,0.2); \node[anchor=west] at (17.9,0.2) {control flow};
+    \draw[dataflow] (20.4,0.2) -- (21.3,0.2); \node[anchor=west] at (21.4,0.2) {data flow};
+    \draw[loopflow] (23.6,0.2) -- (24.5,0.2); \node[anchor=west] at (24.6,0.2) {retry / review loop};
+  \end{scope}}

@@ -1,3 +1,6 @@
+<p align="center"><b>NVIDIA x Red Hat Small Models Hack</b></p>
+<p align="center"><img src="docs/figures/out/IMG_4030.jpeg" alt="Alexandre and Jack at the NVIDIA x Red Hat Small Models Hack" width="420"></p>
+
 # SCRAP: Single-cell RNA-seq Analysis Pipeline
 
 **A team of AI agents that re-analyses public single-cell data, running on one small open model on a single GPU.**
@@ -5,7 +8,7 @@
 **Track:** Multi-Agent Systems · **Bounties:** Best Use of NVIDIA Nemotron Lightning, Best Use of Red Hat vLLM
 **Stack:** NVIDIA Nemotron 3.5 Lightning (31.6B total, 3.6B active) · Red Hat vLLM · NVIDIA Brev H100 · open data from GEO and CZ CELLxGENE
 
-[Screenshot: COVID-19 project page with finding cards (volcano and bar charts)]
+![Figure 1: SCRAP's multi-agent pipeline, from researcher chat to reviewed findings](docs/figures/out/fig1_pipeline.png)
 
 ## The problem
 
@@ -54,39 +57,7 @@ flowchart LR
 
 **6. Report.** The reporter writes finding cards and a final report, then answers your follow-up questions in the chat.
 
-```mermaid
-sequenceDiagram
-    participant P as Planner
-    participant C as Coder
-    participant S as Sandbox kernel
-    participant R as Results reader
-    participant F as Finding writer
-    participant T as checks.py
-    participant K as Stats critic
-    participant L as Literature
-    P->>C: Hypothesis with 2-4 steps
-    loop Each step, up to 3 fix attempts
-        C->>S: Python cell
-        S-->>C: Output, figures or error
-    end
-    S->>R: Printed tables and statistics
-    R->>F: Plain-language result
-    F->>K: Claim, test, p_adj, effect size
-    T->>K: Pass or fail per check
-    Note over K: Fresh context: code, outputs, checks only
-    alt Revise (once)
-        K->>C: Extra analysis requested
-    else Reject
-        K-->>P: Finding discarded
-    else Approve
-        K->>L: Approved finding
-        L-->>K: Known, partly known or not found, with citations
-    end
-```
-
 This division of labour is what one model can't do alone: no single prompt holds the data context, the statistics rules and an adversarial review at once, and hypotheses are explored in parallel.
-
-[Screenshot: intake chat with the files panel showing a notebook preview]
 
 ```mermaid
 flowchart TB
@@ -118,7 +89,7 @@ flowchart TB
     FS -->|files, findings| API
 ```
 
-[Screenshot: a finding card with chart, p_adj, effect size and "Critic approved"]
+![Figure 2: One Nemotron Lightning model on Red Hat vLLM serves every agent role on a single H100](docs/figures/out/fig2_nvidia.png)
 
 ## Why NVIDIA Nemotron Lightning
 
@@ -175,7 +146,7 @@ More CELLxGENE datasets and your own uploads, steering a run from the chat, fine
 
 ## Team
 
-Alexandre Tourneux (agents, sandbox, serving, benchmarks) and John (backend, database, web app).
+Alexandre Tourneux and Jack Scutari.
 
 ## References
 
